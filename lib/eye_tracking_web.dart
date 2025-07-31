@@ -35,6 +35,10 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
   bool _webGazerLoaded = false;
   bool _webGazerStarted = false;
 
+  // Throttling for gaze data
+  DateTime? _lastGazeUpdate;
+  final Duration _gazeThrottleInterval = Duration(milliseconds: 33); // ~30 FPS
+
   @override
   Future<String?> getPlatformVersion() async {
     return 'Web ${html.window.navigator.userAgent}';
@@ -182,119 +186,314 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
     try {
       final webgazer = js.context['webgazer'];
 
-      // Set up gaze listener using direct property access
-      webgazer['setGazeListener'] = allowInterop((data, timestamp) {
+      // Set up global callback first
+      js.context['_gazeCallback'] = allowInterop((data, timestamp) {
+        print('🎯 GAZE CALLBACK FIRED! Data: $data, Timestamp: $timestamp');
         if (data != null && _currentState == EyeTrackingState.tracking) {
           _handleGazeData(data, timestamp);
         }
       });
 
-      // Alternative: Try calling setGazeListener directly
+      // Test if callback is set up correctly
+      print('Global callback set up: ${js.context['_gazeCallback']}');
+
+      // Use multiple approaches to set up the gaze listener
       try {
-        webgazer.callMethod('setGazeListener', [
-          allowInterop((data, timestamp) {
-            if (data != null && _currentState == EyeTrackingState.tracking) {
-              _handleGazeData(data, timestamp);
-            }
-          })
+        // Approach 1: Direct eval
+        js.context.callMethod('eval', [
+          'console.log("Setting up WebGazer gaze listener..."); webgazer.setGazeListener(function(data, timestamp) { console.log("WebGazer callback fired:", data, timestamp); if (window._gazeCallback) { window._gazeCallback(data, timestamp); } else { console.error("_gazeCallback not found!"); } });'
         ]);
-        print('Successfully set gaze listener using callMethod');
+        print('✅ Gaze listener set using eval approach');
       } catch (e) {
-        print('Failed to set gaze listener using callMethod: $e');
+        print('❌ Failed to set gaze listener: $e');
+      }
 
-        // Try alternative approach
+      // Configure WebGazer settings with correct tracker name
+      try {
+        js.context.callMethod('eval', [
+          'webgazer.setRegression("ridge").setTracker("TFFacemesh").showPredictionPoints(false);'
+        ]);
+        print(
+            '✅ WebGazer configured: ridge regression, TFFacemesh tracker, no prediction points');
+      } catch (e) {
+        print('❌ Error configuring WebGazer: $e');
+      }
+
+      // Start WebGazer and wait for it to be ready
+      try {
+        js.context.callMethod('eval', ['webgazer.begin();']);
+        print('🚀 WebGazer.begin() called');
+
+        // Wait longer for WebGazer to fully initialize
+        await Future.delayed(Duration(milliseconds: 3000));
+
+        // Test if WebGazer is actually working
         try {
+          final isReady = js.context.callMethod(
+              'eval', ['typeof webgazer.getCurrentPrediction === "function"']);
+          print('WebGazer getCurrentPrediction available: $isReady');
+
+          // Force a prediction test
           js.context.callMethod('eval', [
-            'webgazer.setGazeListener(function(data, timestamp) { window._gazeCallback(data, timestamp); })'
+            'console.log("Testing WebGazer prediction..."); var pred = webgazer.getCurrentPrediction(); console.log("Current prediction:", pred);'
           ]);
 
-          // Set up global callback
-          js.context['_gazeCallback'] = allowInterop((data, timestamp) {
-            if (data != null && _currentState == EyeTrackingState.tracking) {
-              _handleGazeData(data, timestamp);
-            }
-          });
-          print('Successfully set gaze listener using eval approach');
-        } catch (e2) {
-          print('Failed to set gaze listener using eval: $e2');
-        }
-      }
-
-      // Configure WebGazer settings
-      try {
-        webgazer.callMethod('setRegression', ['ridge']);
-        webgazer.callMethod('setTracker', ['clmtrackr']);
-        webgazer.callMethod('showPredictionPoints', [false]);
-        print('WebGazer configuration set successfully');
-      } catch (e) {
-        print('Error configuring WebGazer: $e');
-        // Try eval approach for configuration
-        try {
+          // Check if the regression model is loaded
           js.context.callMethod('eval', [
-            'webgazer.setRegression("ridge").setTracker("clmtrackr").showPredictionPoints(false)'
+            'console.log("WebGazer ready state:", webgazer.getRegression() ? "regression loaded" : "no regression");'
           ]);
-          print('WebGazer configuration set using eval');
-        } catch (e2) {
-          print('Failed to configure WebGazer using eval: $e2');
+        } catch (e) {
+          print('Error testing WebGazer state: $e');
         }
-      }
 
-      // Start WebGazer
-      try {
-        await promiseToFuture(webgazer.callMethod('begin'));
-        print('WebGazer started using callMethod');
+        _webGazerStarted = true;
+        print('✅ WebGazer initialization completed successfully');
+
+        // Auto-calibration: Add some default calibration points to help WebGazer
+        // start producing meaningful gaze predictions
+        _performAutoCalibration();
       } catch (e) {
-        print('Failed to start WebGazer using callMethod: $e');
-        // Try eval approach
-        try {
-          js.context.callMethod('eval', ['webgazer.begin()']);
-          await Future.delayed(
-              Duration(milliseconds: 1000)); // Give it time to start
-          print('WebGazer started using eval');
-        } catch (e2) {
-          print('Failed to start WebGazer using eval: $e2');
-          throw e2;
-        }
+        print('❌ Error starting WebGazer: $e');
+        throw e;
       }
-
-      _webGazerStarted = true;
-      print('WebGazer initialization completed successfully');
     } catch (e) {
-      print('Error initializing WebGazer: $e');
+      print('❌ Error initializing WebGazer: $e');
       throw e;
     }
   }
 
   void _handleGazeData(dynamic data, num timestamp) {
     try {
-      // Handle different data formats that WebGazer might return
-      double x = 0.0;
-      double y = 0.0;
+      // More aggressive throttling to prevent UI freezing
+      final now = DateTime.now();
+      if (_lastGazeUpdate != null &&
+          now.difference(_lastGazeUpdate!) < Duration(milliseconds: 100)) {
+        return; // Skip this update - only allow 10 FPS
+      }
+      _lastGazeUpdate = now;
 
-      if (data is Map) {
-        x = (data['x'] ?? 0.0).toDouble();
-        y = (data['y'] ?? 0.0).toDouble();
-      } else if (data != null) {
-        // Try accessing as JS object
+      if (data == null) {
+        return;
+      }
+
+      // Enhanced debugging - inspect the JavaScript object directly
+      if (timestamp % 60 == 0) {
+        // Log every 60th frame
+        print('🔍 DEBUGGING GAZE DATA:');
+        print('  Raw data: $data (type: ${data.runtimeType})');
+
+        // Use JavaScript to inspect the object directly
         try {
-          x = (getProperty(data, 'x') ?? 0.0).toDouble();
-          y = (getProperty(data, 'y') ?? 0.0).toDouble();
+          js.context.callMethod('eval', [
+            'console.log("🔍 WebGazer data inspection:"); ' +
+                'var data = arguments[0]; ' +
+                'console.log("  data:", data); ' +
+                'console.log("  typeof data:", typeof data); ' +
+                'console.log("  data.x:", data.x); ' +
+                'console.log("  data.y:", data.y); ' +
+                'console.log("  Object.keys(data):", Object.keys(data)); ' +
+                'console.log("  JSON.stringify(data):", JSON.stringify(data));'
+          ]);
         } catch (e) {
-          print('Error parsing gaze data: $e');
-          return;
+          print('Error inspecting data: $e');
         }
       }
 
+      double x = 0.0;
+      double y = 0.0;
+
+      // Try multiple approaches to extract coordinates
+      bool coordinatesFound = false;
+
+      // Approach 1: Direct property access if it's a Map
+      if (data is Map) {
+        final mapX = data['x'];
+        final mapY = data['y'];
+        if (mapX != null && mapY != null) {
+          x = (mapX is num
+              ? mapX.toDouble()
+              : double.tryParse(mapX.toString()) ?? 0.0);
+          y = (mapY is num
+              ? mapY.toDouble()
+              : double.tryParse(mapY.toString()) ?? 0.0);
+          coordinatesFound = true;
+          if (timestamp % 60 == 0) print('✅ Parsed as Dart Map: x=$x, y=$y');
+        }
+      }
+
+      // Approach 2: JavaScript object property access using dart:js_util
+      if (!coordinatesFound) {
+        try {
+          final jsX = getProperty(data, 'x');
+          final jsY = getProperty(data, 'y');
+
+          if (jsX != null && jsY != null) {
+            x = (jsX is num
+                ? jsX.toDouble()
+                : double.tryParse(jsX.toString()) ?? 0.0);
+            y = (jsY is num
+                ? jsY.toDouble()
+                : double.tryParse(jsY.toString()) ?? 0.0);
+            coordinatesFound = true;
+            if (timestamp % 60 == 0)
+              print('✅ Parsed using getProperty: x=$x, y=$y');
+          }
+        } catch (e) {
+          if (timestamp % 60 == 0) print('❌ getProperty failed: $e');
+        }
+      }
+
+      // Approach 3: Use JavaScript eval to extract coordinates
+      if (!coordinatesFound) {
+        try {
+          // Pass the data object to JavaScript and extract coordinates
+          js.context['_tempGazeData'] = data;
+          final result = js.context.callMethod('eval', [
+            '(function() { ' +
+                'var data = window._tempGazeData; ' +
+                'if (data && typeof data === "object") { ' +
+                '  return { x: data.x || 0, y: data.y || 0, found: !!(data.x !== undefined && data.y !== undefined) }; ' +
+                '} ' +
+                'return { x: 0, y: 0, found: false }; ' +
+                '})()'
+          ]);
+
+          if (result != null) {
+            final foundFlag = getProperty(result, 'found');
+            if (foundFlag == true) {
+              x = (getProperty(result, 'x') ?? 0.0).toDouble();
+              y = (getProperty(result, 'y') ?? 0.0).toDouble();
+              coordinatesFound = true;
+              if (timestamp % 60 == 0)
+                print('✅ Parsed using JavaScript eval: x=$x, y=$y');
+            }
+          }
+        } catch (e) {
+          if (timestamp % 60 == 0) print('❌ JavaScript eval failed: $e');
+        }
+      }
+
+      // If still no coordinates, check if WebGazer needs calibration
+      if (!coordinatesFound || (x == 0.0 && y == 0.0)) {
+        if (timestamp % 300 == 0) {
+          // Every 5 seconds or so
+          print(
+              '⚠️  No valid gaze coordinates found. WebGazer might need calibration.');
+          print(
+              '   Consider calling calibration or check if face is properly detected.');
+
+          // Check WebGazer's internal state
+          try {
+            js.context.callMethod('eval', [
+              'console.log("📊 WebGazer status:"); ' +
+                  'console.log("  isReady:", typeof webgazer.isReady === "function" ? webgazer.isReady() : "unknown"); ' +
+                  'console.log("  regression model:", webgazer.getRegression() ? "loaded" : "not loaded"); ' +
+                  'console.log("  current prediction:", webgazer.getCurrentPrediction());'
+            ]);
+          } catch (e) {
+            print('Error checking WebGazer status: $e');
+          }
+        }
+        return;
+      }
+
+      // Validate coordinates
+      if (!x.isFinite || !y.isFinite) {
+        if (timestamp % 60 == 0) print('❌ Invalid coordinates: x=$x, y=$y');
+        return;
+      }
+
+      // Create and emit gaze data
       final gazeData = GazeData(
         x: x,
         y: y,
-        confidence: 0.8,
+        confidence: coordinatesFound ? 0.8 : 0.3,
         timestamp: DateTime.fromMillisecondsSinceEpoch(timestamp.toInt()),
       );
 
-      _gazeController.add(gazeData);
+      if (timestamp % 60 == 0) {
+        print(
+            '📍 Final gaze data: x=${gazeData.x}, y=${gazeData.y}, confidence=${gazeData.confidence}');
+      }
+
+      // Emit to stream with error handling
+      if (!_gazeController.isClosed) {
+        try {
+          _gazeController.add(gazeData);
+        } catch (e) {
+          print('Error adding to gaze stream: $e');
+        }
+      }
     } catch (e) {
-      print('Error handling gaze data: $e');
+      print('❌ Error in _handleGazeData: $e');
+    }
+  }
+
+  Future<void> _performAutoCalibration() async {
+    print('🎯 Starting auto-calibration to help WebGazer...');
+
+    // Add some basic calibration points to help WebGazer learn
+    final screenWidth = html.window.screen?.width?.toDouble() ?? 1920.0;
+    final screenHeight = html.window.screen?.height?.toDouble() ?? 1080.0;
+
+    // Use center and corner points for quick calibration
+    final autoCalibrationPoints = [
+      CalibrationPoint(
+          x: screenWidth * 0.5, y: screenHeight * 0.5, order: 0), // Center
+      CalibrationPoint(
+          x: screenWidth * 0.2,
+          y: screenHeight * 0.2,
+          order: 1), // Top-left area
+      CalibrationPoint(
+          x: screenWidth * 0.8,
+          y: screenHeight * 0.2,
+          order: 2), // Top-right area
+      CalibrationPoint(
+          x: screenWidth * 0.2,
+          y: screenHeight * 0.8,
+          order: 3), // Bottom-left area
+      CalibrationPoint(
+          x: screenWidth * 0.8,
+          y: screenHeight * 0.8,
+          order: 4), // Bottom-right area
+    ];
+
+    try {
+      for (int i = 0; i < autoCalibrationPoints.length; i++) {
+        final point = autoCalibrationPoints[i];
+        print(
+            '  📍 Auto-calibrating point ${i + 1}/${autoCalibrationPoints.length}: (${point.x.toInt()}, ${point.y.toInt()})');
+
+        // Add multiple samples for each point
+        for (int sample = 0; sample < 3; sample++) {
+          try {
+            js.context.callMethod('eval',
+                ['webgazer.recordScreenPosition(${point.x}, ${point.y});']);
+          } catch (e) {
+            print('    ❌ Error recording calibration point: $e');
+          }
+          await Future.delayed(Duration(milliseconds: 200));
+        }
+      }
+
+      print('✅ Auto-calibration completed');
+
+      // Give WebGazer a moment to process the calibration data
+      await Future.delayed(Duration(milliseconds: 1000));
+
+      // Test if calibration helped
+      try {
+        js.context.callMethod('eval', [
+          'console.log("🧪 Testing WebGazer after auto-calibration:"); ' +
+              'var prediction = webgazer.getCurrentPrediction(); ' +
+              'console.log("  Current prediction:", prediction); ' +
+              'console.log("  Regression model loaded:", !!webgazer.getRegression());'
+        ]);
+      } catch (e) {
+        print('Error testing post-calibration: $e');
+      }
+    } catch (e) {
+      print('❌ Error during auto-calibration: $e');
     }
   }
 

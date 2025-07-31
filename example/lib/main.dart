@@ -176,17 +176,28 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
   }
 
   void _startDataStreams() {
-    // Gaze data stream
+    // Gaze data stream with optimized UI updates
     _gazeSubscription = _eyeTrackingPlugin.getGazeStream().listen((gazeData) {
-      setState(() {
-        _latestGaze = gazeData;
+      // Only update UI if coordinates have actually changed significantly
+      // to avoid excessive rebuilds
+      final hasSignificantChange = _latestGaze == null ||
+          (gazeData.x - _latestGaze!.x).abs() > 5.0 ||
+          (gazeData.y - _latestGaze!.y).abs() > 5.0;
 
-        // Add to gaze history for visualization
-        _gazeHistory.add(Offset(gazeData.x, gazeData.y));
-        if (_gazeHistory.length > _maxGazeHistory) {
-          _gazeHistory.removeAt(0);
-        }
-      });
+      if (hasSignificantChange) {
+        setState(() {
+          _latestGaze = gazeData;
+
+          // Add to gaze history for visualization (but limit frequency)
+          _gazeHistory.add(Offset(gazeData.x, gazeData.y));
+          if (_gazeHistory.length > _maxGazeHistory) {
+            _gazeHistory.removeAt(0);
+          }
+        });
+      } else {
+        // Update the latest gaze without triggering UI rebuild
+        _latestGaze = gazeData;
+      }
     });
 
     // Eye state stream
