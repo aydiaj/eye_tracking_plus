@@ -295,7 +295,7 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
 
   void _handleGazeData(dynamic data, num timestamp) {
     try {
-      // More aggressive throttling to prevent UI freezing
+      // Throttle updates to prevent UI freezing
       final now = DateTime.now();
       if (_lastGazeUpdate != null &&
           now.difference(_lastGazeUpdate!) < Duration(milliseconds: 100)) {
@@ -307,49 +307,10 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
         return;
       }
 
-      // AGGRESSIVE debugging - inspect EVERY object that's not null
-      if (data != null && data.toString().contains('object Object')) {
-        print('🔍 AGGRESSIVE DEBUGGING - Found object!');
-        print('  Raw data: $data (type: ${data.runtimeType})');
-        print('  Timestamp: $timestamp');
-
-        // Use JavaScript to inspect the object directly
-        try {
-          // Store data temporarily for JavaScript inspection
-          js.context['_debugGazeData'] = data;
-          js.context.callMethod('eval', [
-            'console.log("🔍 IMMEDIATE WebGazer object inspection:"); ' +
-                'var data = window._debugGazeData; ' +
-                'console.log("  Raw object:", data); ' +
-                'console.log("  typeof data:", typeof data); ' +
-                'console.log("  data === null:", data === null); ' +
-                'console.log("  data === undefined:", data === undefined); ' +
-                'if (data && typeof data === "object") { ' +
-                '  console.log("  ✅ OBJECT FOUND!"); ' +
-                '  console.log("  data.x:", data.x); ' +
-                '  console.log("  data.y:", data.y); ' +
-                '  console.log("  typeof data.x:", typeof data.x); ' +
-                '  console.log("  typeof data.y:", typeof data.y); ' +
-                '  console.log("  Object.keys(data):", Object.keys(data)); ' +
-                '  console.log("  Object.getOwnPropertyNames(data):", Object.getOwnPropertyNames(data)); ' +
-                '  try { ' +
-                '    console.log("  JSON.stringify(data):", JSON.stringify(data)); ' +
-                '  } catch(e) { ' +
-                '    console.log("  JSON.stringify failed:", e); ' +
-                '  } ' +
-                '  console.log("  data constructor:", data.constructor ? data.constructor.name : "no constructor"); ' +
-                '} else { ' +
-                '  console.log("  ❌ Data is not a valid object"); ' +
-                '}'
-          ]);
-
-          // Also try to break the execution here so we can see the results
-          print(
-              '🚨 STOPPING here to check browser console for detailed object inspection!');
-          return; // Skip processing this object for now to see the logs
-        } catch (e) {
-          print('❌ Error inspecting data: $e');
-        }
+      // Log data type for debugging (but don't stop execution)
+      if (timestamp.toInt() % 120 == 0) {
+        // Log every 2 seconds or so
+        print('📊 Processing gaze data: ${data.runtimeType} - $data');
       }
 
       double x = 0.0;
@@ -396,72 +357,33 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
         }
       }
 
-      // Approach 3: Enhanced JavaScript eval to extract coordinates
-      if (!coordinatesFound) {
+      // Approach 3: Try accessing as JsObject directly
+      if (!coordinatesFound &&
+          data.runtimeType.toString().contains('JsObject')) {
         try {
-          // Pass the data object to JavaScript and extract coordinates with more robust checking
+          // For JsObject, try to access properties directly through JavaScript
           js.context['_tempGazeData'] = data;
-          final result = js.context.callMethod('eval', [
-            '(function() { ' +
-                'var data = window._tempGazeData; ' +
-                'console.log("🔧 Approach 3 - Enhanced eval extraction:"); ' +
-                'console.log("  Input data:", data); ' +
-                '' +
-                'if (!data) { ' +
-                '  console.log("  ❌ Data is null/undefined"); ' +
-                '  return { x: 0, y: 0, found: false }; ' +
-                '} ' +
-                '' +
-                '// Try multiple property access patterns ' +
-                'var extractedX = null, extractedY = null; ' +
-                '' +
-                '// Pattern 1: Direct properties ' +
-                'if (data.x !== undefined && data.y !== undefined) { ' +
-                '  extractedX = data.x; extractedY = data.y; ' +
-                '  console.log("  ✅ Pattern 1 (data.x/y):", extractedX, extractedY); ' +
-                '} ' +
-                '// Pattern 2: Array-like access ' +
-                'else if (data[0] !== undefined && data[1] !== undefined) { ' +
-                '  extractedX = data[0]; extractedY = data[1]; ' +
-                '  console.log("  ✅ Pattern 2 (data[0]/[1]):", extractedX, extractedY); ' +
-                '} ' +
-                '// Pattern 3: Nested object ' +
-                'else if (data.prediction && data.prediction.x !== undefined) { ' +
-                '  extractedX = data.prediction.x; extractedY = data.prediction.y; ' +
-                '  console.log("  ✅ Pattern 3 (data.prediction.x/y):", extractedX, extractedY); ' +
-                '} ' +
-                '// Pattern 4: Check all properties ' +
-                'else { ' +
-                '  console.log("  🔍 Checking all properties..."); ' +
-                '  var keys = Object.keys(data); ' +
-                '  console.log("  Available keys:", keys); ' +
-                '  for (var key of keys) { ' +
-                '    console.log("    " + key + ":", data[key], typeof data[key]); ' +
-                '  } ' +
-                '} ' +
-                '' +
-                'var found = (extractedX !== null && extractedY !== null && ' +
-                '            typeof extractedX === "number" && typeof extractedY === "number" && ' +
-                '            !isNaN(extractedX) && !isNaN(extractedY)); ' +
-                '' +
-                'console.log("  Final result: x=" + extractedX + ", y=" + extractedY + ", found=" + found); ' +
-                'return { x: extractedX || 0, y: extractedY || 0, found: found }; ' +
-                '})()'
-          ]);
 
-          if (result != null) {
-            final foundFlag = getProperty(result, 'found');
-            if (foundFlag == true) {
-              x = (getProperty(result, 'x') ?? 0.0).toDouble();
-              y = (getProperty(result, 'y') ?? 0.0).toDouble();
+          // Simple extraction without complex eval
+          final jsX = js.context.callMethod('eval', ['window._tempGazeData.x']);
+          final jsY = js.context.callMethod('eval', ['window._tempGazeData.y']);
+
+          if (jsX != null && jsY != null) {
+            x = (jsX is num
+                ? jsX.toDouble()
+                : double.tryParse(jsX.toString()) ?? 0.0);
+            y = (jsY is num
+                ? jsY.toDouble()
+                : double.tryParse(jsY.toString()) ?? 0.0);
+
+            if (x > 0 && y > 0) {
               coordinatesFound = true;
               if (timestamp % 30 == 0)
-                print('✅ Parsed using Enhanced JavaScript eval: x=$x, y=$y');
+                print('✅ Parsed using simple JS eval: x=$x, y=$y');
             }
           }
         } catch (e) {
-          if (timestamp % 30 == 0)
-            print('❌ Enhanced JavaScript eval failed: $e');
+          if (timestamp % 30 == 0) print('❌ Simple JS eval failed: $e');
         }
       }
 

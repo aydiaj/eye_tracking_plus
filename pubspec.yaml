@@ -1,9 +1,9 @@
 name: eye_tracking
 description: "High-accuracy open-source eye tracking plugin for Flutter supporting web, iOS, and Android with calibration, real-time gaze tracking, and computer vision features."
 version: 0.0.1
-homepage: https://github.com/your-username/eye_tracking
-repository: https://github.com/your-username/eye_tracking
-issue_tracker: https://github.com/your-username/eye_tracking/issues
+homepage: https://github.com/Piyushhhhh/eye_tracking
+repository: https://github.com/Piyushhhhh/eye_tracking
+issue_tracker: https://github.com/Piyushhhhh/eye_tracking/issues
 
 environment:
   sdk: ^3.5.3
