@@ -194,7 +194,7 @@ class EyeTracking {
     double screenWidth = 1920,
     double screenHeight = 1080,
   }) {
-    final margin = 0.1; // 10% margin from edges
+    const margin = 0.1; // 10% margin from edges
     return [
       CalibrationPoint(
         x: screenWidth * margin,

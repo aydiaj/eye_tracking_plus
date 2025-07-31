@@ -1,13 +1,24 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'eye_tracking_method_channel.dart';
 
-/// Data models for eye tracking
+/// Represents gaze tracking data with screen coordinates and confidence.
+///
+/// Contains the x,y coordinates where the user is looking on the screen,
+/// along with a confidence score indicating tracking accuracy.
 class GazeData {
+  /// The horizontal coordinate of the gaze point on the screen
   final double x;
+
+  /// The vertical coordinate of the gaze point on the screen
   final double y;
+
+  /// Confidence score between 0.0 and 1.0 indicating tracking accuracy
   final double confidence;
+
+  /// Timestamp when this gaze data was captured
   final DateTime timestamp;
 
+  /// Creates a new [GazeData] instance.
   GazeData({
     required this.x,
     required this.y,
@@ -15,6 +26,7 @@ class GazeData {
     required this.timestamp,
   });
 
+  /// Converts this gaze data to a map for serialization.
   Map<String, dynamic> toMap() {
     return {
       'x': x,
@@ -24,6 +36,7 @@ class GazeData {
     };
   }
 
+  /// Creates a [GazeData] instance from a map.
   factory GazeData.fromMap(Map<String, dynamic> map) {
     return GazeData(
       x: map['x']?.toDouble() ?? 0.0,
@@ -34,13 +47,27 @@ class GazeData {
   }
 }
 
+/// Represents the current state of the user's eyes.
+///
+/// Provides information about eye openness and blink detection
+/// for both left and right eyes.
 class EyeState {
+  /// Whether the left eye is currently open
   final bool leftEyeOpen;
+
+  /// Whether the right eye is currently open
   final bool rightEyeOpen;
+
+  /// Whether a blink was detected in the left eye
   final bool leftEyeBlink;
+
+  /// Whether a blink was detected in the right eye
   final bool rightEyeBlink;
+
+  /// Timestamp when this eye state was captured
   final DateTime timestamp;
 
+  /// Creates a new [EyeState] instance.
   EyeState({
     required this.leftEyeOpen,
     required this.rightEyeOpen,
@@ -49,6 +76,7 @@ class EyeState {
     required this.timestamp,
   });
 
+  /// Converts this eye state to a map for serialization.
   Map<String, dynamic> toMap() {
     return {
       'leftEyeOpen': leftEyeOpen,
@@ -59,6 +87,7 @@ class EyeState {
     };
   }
 
+  /// Creates an [EyeState] instance from a map.
   factory EyeState.fromMap(Map<String, dynamic> map) {
     return EyeState(
       leftEyeOpen: map['leftEyeOpen'] ?? false,
@@ -172,6 +201,10 @@ enum EyeTrackingState {
   error,
 }
 
+/// Platform interface for eye tracking functionality.
+///
+/// This abstract class defines the interface that platform-specific
+/// implementations must follow to provide eye tracking capabilities.
 abstract class EyeTrackingPlatform extends PlatformInterface {
   /// Constructs a EyeTrackingPlatform.
   EyeTrackingPlatform() : super(token: _token);
