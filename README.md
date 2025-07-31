@@ -12,6 +12,9 @@
 A **high-accuracy, open-source eye tracking plugin** for Flutter that enables real-time gaze tracking across web, iOS, and Android platforms. Built with performance and ease of use in mind, this plugin provides sub-degree accuracy eye tracking with comprehensive calibration, eye state detection, head pose estimation, and face detection capabilities.
 
 🌟 **Perfect for accessibility apps, user experience research, gaming, and interactive applications!**
+## Demo Video
+
+[![Eye Tracking Demo](https://img.youtube.com/vi/2R-Xs3GaroE/mqdefault.jpg)](https://www.youtube.com/watch?v=2R-Xs3GaroE)
 
 ## 📋 Table of Contents
 
