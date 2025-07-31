@@ -175,6 +175,27 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
     }
   }
 
+  Future<void> _debugWebGazer() async {
+    try {
+      _showSnackBar(
+          'Running WebGazer debug checks... Check console for details',
+          Colors.orange);
+
+      // Force debug logging in the web implementation
+      print('🔧 Debug button pressed - triggering enhanced logging');
+
+      // Try to get current gaze data for debugging
+      if (_latestGaze != null) {
+        print(
+            '📍 Latest gaze data: x=${_latestGaze!.x}, y=${_latestGaze!.y}, confidence=${_latestGaze!.confidence}');
+      } else {
+        print('⚠️ No gaze data received yet');
+      }
+    } catch (e) {
+      _showSnackBar('Debug error: $e', Colors.red);
+    }
+  }
+
   void _startDataStreams() {
     // Gaze data stream with optimized UI updates
     _gazeSubscription = _eyeTrackingPlugin.getGazeStream().listen((gazeData) {
@@ -406,6 +427,12 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
                           ? _startCalibration
                           : null,
                   child: const Text('Calibrate'),
+                ),
+                ElevatedButton(
+                  onPressed: _isInitialized ? _debugWebGazer : null,
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                  child: const Text('Debug WebGazer'),
                 ),
               ],
             ),

@@ -27,7 +27,7 @@ Add this to your `pubspec.yaml`:
 dependencies:
   eye_tracking:
     git:
-      url: https://github.com/your-username/eye_tracking.git
+      url: https://github.com/piyushhhhh/eye_tracking.git
 ```
 
 ### Basic Usage
@@ -308,7 +308,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ### Development Setup
 ```bash
-git clone https://github.com/your-username/eye_tracking.git
+git clone https://github.com/piyushhhhh/eye_tracking.git
 cd eye_tracking
 flutter pub get
 cd example
@@ -325,13 +325,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [WebGazer.js](https://webgazer.cs.brown.edu/) - Web-based eye tracking
 - [MediaPipe](https://mediapipe.dev/) - Face mesh detection
 - [Flutter](https://flutter.dev/) - Cross-platform framework
-
-## 📞 Support
-
-- 📧 Email: support@yourdomain.com
-- 🐛 Issues: [GitHub Issues](https://github.com/your-username/eye_tracking/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/your-username/eye_tracking/discussions)
-
----
 
 **⭐ Star this project if you find it useful!**

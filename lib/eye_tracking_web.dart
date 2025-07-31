@@ -199,9 +199,18 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
 
       // Use multiple approaches to set up the gaze listener
       try {
-        // Approach 1: Direct eval
+        // Approach 1: Direct eval with more debugging
         js.context.callMethod('eval', [
-          'console.log("Setting up WebGazer gaze listener..."); webgazer.setGazeListener(function(data, timestamp) { console.log("WebGazer callback fired:", data, timestamp); if (window._gazeCallback) { window._gazeCallback(data, timestamp); } else { console.error("_gazeCallback not found!"); } });'
+          'console.log("🔧 Setting up WebGazer gaze listener..."); ' +
+              'webgazer.setGazeListener(function(data, timestamp) { ' +
+              '  console.log("🎯 WebGazer callback fired! Data:", data, "Timestamp:", timestamp); ' +
+              '  if (window._gazeCallback) { ' +
+              '    window._gazeCallback(data, timestamp); ' +
+              '  } else { ' +
+              '    console.error("❌ _gazeCallback not found!"); ' +
+              '  } ' +
+              '}); ' +
+              'console.log("✅ Gaze listener setup complete");'
         ]);
         print('✅ Gaze listener set using eval approach');
       } catch (e) {
@@ -233,9 +242,31 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
               'eval', ['typeof webgazer.getCurrentPrediction === "function"']);
           print('WebGazer getCurrentPrediction available: $isReady');
 
-          // Force a prediction test
+          // Force a prediction test and start a monitoring loop
           js.context.callMethod('eval', [
-            'console.log("Testing WebGazer prediction..."); var pred = webgazer.getCurrentPrediction(); console.log("Current prediction:", pred);'
+            'console.log("🧪 Testing WebGazer prediction..."); ' +
+                'var pred = webgazer.getCurrentPrediction(); ' +
+                'console.log("Current prediction:", pred); ' +
+                '' +
+                'console.log("🔄 Starting WebGazer monitoring..."); ' +
+                'var checkCount = 0; ' +
+                'function checkWebGazer() { ' +
+                '  checkCount++; ' +
+                '  var prediction = webgazer.getCurrentPrediction(); ' +
+                '  var regression = webgazer.getRegression(); ' +
+                '  console.log("📊 Check #" + checkCount + ":"); ' +
+                '  console.log("  Prediction:", prediction); ' +
+                '  console.log("  Regression loaded:", !!regression); ' +
+                '  if (prediction && prediction.x !== undefined && prediction.y !== undefined) { ' +
+                '    console.log("✅ WebGazer is producing valid predictions!"); ' +
+                '  } else { ' +
+                '    console.log("⚠️  WebGazer not producing predictions yet..."); ' +
+                '  } ' +
+                '  if (checkCount < 10) { ' +
+                '    setTimeout(checkWebGazer, 2000); ' +
+                '  } ' +
+                '} ' +
+                'setTimeout(checkWebGazer, 1000);'
           ]);
 
           // Check if the regression model is loaded
@@ -276,26 +307,48 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
         return;
       }
 
-      // Enhanced debugging - inspect the JavaScript object directly
-      if (timestamp % 60 == 0) {
-        // Log every 60th frame
-        print('🔍 DEBUGGING GAZE DATA:');
+      // AGGRESSIVE debugging - inspect EVERY object that's not null
+      if (data != null && data.toString().contains('object Object')) {
+        print('🔍 AGGRESSIVE DEBUGGING - Found object!');
         print('  Raw data: $data (type: ${data.runtimeType})');
+        print('  Timestamp: $timestamp');
 
         // Use JavaScript to inspect the object directly
         try {
+          // Store data temporarily for JavaScript inspection
+          js.context['_debugGazeData'] = data;
           js.context.callMethod('eval', [
-            'console.log("🔍 WebGazer data inspection:"); ' +
-                'var data = arguments[0]; ' +
-                'console.log("  data:", data); ' +
+            'console.log("🔍 IMMEDIATE WebGazer object inspection:"); ' +
+                'var data = window._debugGazeData; ' +
+                'console.log("  Raw object:", data); ' +
                 'console.log("  typeof data:", typeof data); ' +
-                'console.log("  data.x:", data.x); ' +
-                'console.log("  data.y:", data.y); ' +
-                'console.log("  Object.keys(data):", Object.keys(data)); ' +
-                'console.log("  JSON.stringify(data):", JSON.stringify(data));'
+                'console.log("  data === null:", data === null); ' +
+                'console.log("  data === undefined:", data === undefined); ' +
+                'if (data && typeof data === "object") { ' +
+                '  console.log("  ✅ OBJECT FOUND!"); ' +
+                '  console.log("  data.x:", data.x); ' +
+                '  console.log("  data.y:", data.y); ' +
+                '  console.log("  typeof data.x:", typeof data.x); ' +
+                '  console.log("  typeof data.y:", typeof data.y); ' +
+                '  console.log("  Object.keys(data):", Object.keys(data)); ' +
+                '  console.log("  Object.getOwnPropertyNames(data):", Object.getOwnPropertyNames(data)); ' +
+                '  try { ' +
+                '    console.log("  JSON.stringify(data):", JSON.stringify(data)); ' +
+                '  } catch(e) { ' +
+                '    console.log("  JSON.stringify failed:", e); ' +
+                '  } ' +
+                '  console.log("  data constructor:", data.constructor ? data.constructor.name : "no constructor"); ' +
+                '} else { ' +
+                '  console.log("  ❌ Data is not a valid object"); ' +
+                '}'
           ]);
+
+          // Also try to break the execution here so we can see the results
+          print(
+              '🚨 STOPPING here to check browser console for detailed object inspection!');
+          return; // Skip processing this object for now to see the logs
         } catch (e) {
-          print('Error inspecting data: $e');
+          print('❌ Error inspecting data: $e');
         }
       }
 
@@ -343,18 +396,56 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
         }
       }
 
-      // Approach 3: Use JavaScript eval to extract coordinates
+      // Approach 3: Enhanced JavaScript eval to extract coordinates
       if (!coordinatesFound) {
         try {
-          // Pass the data object to JavaScript and extract coordinates
+          // Pass the data object to JavaScript and extract coordinates with more robust checking
           js.context['_tempGazeData'] = data;
           final result = js.context.callMethod('eval', [
             '(function() { ' +
                 'var data = window._tempGazeData; ' +
-                'if (data && typeof data === "object") { ' +
-                '  return { x: data.x || 0, y: data.y || 0, found: !!(data.x !== undefined && data.y !== undefined) }; ' +
+                'console.log("🔧 Approach 3 - Enhanced eval extraction:"); ' +
+                'console.log("  Input data:", data); ' +
+                '' +
+                'if (!data) { ' +
+                '  console.log("  ❌ Data is null/undefined"); ' +
+                '  return { x: 0, y: 0, found: false }; ' +
                 '} ' +
-                'return { x: 0, y: 0, found: false }; ' +
+                '' +
+                '// Try multiple property access patterns ' +
+                'var extractedX = null, extractedY = null; ' +
+                '' +
+                '// Pattern 1: Direct properties ' +
+                'if (data.x !== undefined && data.y !== undefined) { ' +
+                '  extractedX = data.x; extractedY = data.y; ' +
+                '  console.log("  ✅ Pattern 1 (data.x/y):", extractedX, extractedY); ' +
+                '} ' +
+                '// Pattern 2: Array-like access ' +
+                'else if (data[0] !== undefined && data[1] !== undefined) { ' +
+                '  extractedX = data[0]; extractedY = data[1]; ' +
+                '  console.log("  ✅ Pattern 2 (data[0]/[1]):", extractedX, extractedY); ' +
+                '} ' +
+                '// Pattern 3: Nested object ' +
+                'else if (data.prediction && data.prediction.x !== undefined) { ' +
+                '  extractedX = data.prediction.x; extractedY = data.prediction.y; ' +
+                '  console.log("  ✅ Pattern 3 (data.prediction.x/y):", extractedX, extractedY); ' +
+                '} ' +
+                '// Pattern 4: Check all properties ' +
+                'else { ' +
+                '  console.log("  🔍 Checking all properties..."); ' +
+                '  var keys = Object.keys(data); ' +
+                '  console.log("  Available keys:", keys); ' +
+                '  for (var key of keys) { ' +
+                '    console.log("    " + key + ":", data[key], typeof data[key]); ' +
+                '  } ' +
+                '} ' +
+                '' +
+                'var found = (extractedX !== null && extractedY !== null && ' +
+                '            typeof extractedX === "number" && typeof extractedY === "number" && ' +
+                '            !isNaN(extractedX) && !isNaN(extractedY)); ' +
+                '' +
+                'console.log("  Final result: x=" + extractedX + ", y=" + extractedY + ", found=" + found); ' +
+                'return { x: extractedX || 0, y: extractedY || 0, found: found }; ' +
                 '})()'
           ]);
 
@@ -364,12 +455,13 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
               x = (getProperty(result, 'x') ?? 0.0).toDouble();
               y = (getProperty(result, 'y') ?? 0.0).toDouble();
               coordinatesFound = true;
-              if (timestamp % 60 == 0)
-                print('✅ Parsed using JavaScript eval: x=$x, y=$y');
+              if (timestamp % 30 == 0)
+                print('✅ Parsed using Enhanced JavaScript eval: x=$x, y=$y');
             }
           }
         } catch (e) {
-          if (timestamp % 60 == 0) print('❌ JavaScript eval failed: $e');
+          if (timestamp % 30 == 0)
+            print('❌ Enhanced JavaScript eval failed: $e');
         }
       }
 
