@@ -1,10 +1,32 @@
-# Eye Tracking Plugin for Flutter
+# Eye Tracking for Flutter
 
-A high-accuracy, open-source eye tracking plugin for Flutter that works on web, iOS, and Android. This plugin provides real-time gaze tracking, calibration, eye state detection, head pose estimation, and face detection capabilities.
+[![pub package](https://img.shields.io/pub/v/eye_tracking.svg)](https://pub.dev/packages/eye_tracking)
+[![popularity](https://img.shields.io/pub/popularity/eye_tracking.svg)](https://pub.dev/packages/eye_tracking/score)
+[![likes](https://img.shields.io/pub/likes/eye_tracking.svg)](https://pub.dev/packages/eye_tracking/score)
+[![pub points](https://img.shields.io/pub/points/eye_tracking.svg)](https://pub.dev/packages/eye_tracking/score)
 
-![Eye Tracking Demo](https://img.shields.io/badge/platform-web%20%7C%20ios%20%7C%20android-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Flutter](https://img.shields.io/badge/flutter-%3E%3D3.3.0-blue)
+[![Platform](https://img.shields.io/badge/platform-web%20%7C%20ios%20%7C%20android-blue)](https://pub.dev/packages/eye_tracking)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Flutter](https://img.shields.io/badge/flutter-%3E%3D3.3.0-blue.svg)](https://flutter.dev)
+
+A **high-accuracy, open-source eye tracking plugin** for Flutter that enables real-time gaze tracking across web, iOS, and Android platforms. Built with performance and ease of use in mind, this plugin provides sub-degree accuracy eye tracking with comprehensive calibration, eye state detection, head pose estimation, and face detection capabilities.
+
+🌟 **Perfect for accessibility apps, user experience research, gaming, and interactive applications!**
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+  - [Installation](#installation)
+  - [Basic Usage](#basic-usage)
+  - [Simple Integration](#simple-integration)
+- [Detailed Usage](#-detailed-usage)
+- [Examples](#-running-the-example)
+- [Architecture](#️-architecture)
+- [Performance](#-accuracy--performance)
+- [Platform Support](#-platform-specific-notes)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ## ✨ Features
 
@@ -25,23 +47,37 @@ Add this to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  eye_tracking:
-    git:
-      url: https://github.com/piyushhhhh/eye_tracking.git
+  eye_tracking: ^0.1.0
+```
+
+Or install it from the command line:
+
+```bash
+flutter pub add eye_tracking
+```
+
+Then run:
+
+```bash
+flutter pub get
 ```
 
 ### Basic Usage
 
 ```dart
 import 'package:eye_tracking/eye_tracking.dart';
+import 'package:flutter/material.dart';
 
-class MyApp extends StatefulWidget {
+class EyeTrackingExample extends StatefulWidget {
+  const EyeTrackingExample({super.key});
+
   @override
-  _MyAppState createState() => _MyAppState();
+  State<EyeTrackingExample> createState() => _EyeTrackingExampleState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _EyeTrackingExampleState extends State<EyeTrackingExample> {
   final _eyeTracking = EyeTracking();
+  String _gazeInfo = 'Not tracking';
   
   @override
   void initState() {
@@ -50,21 +86,65 @@ class _MyAppState extends State<MyApp> {
   }
   
   Future<void> _initializeEyeTracking() async {
-    // Initialize the plugin
-    await _eyeTracking.initialize();
-    
-    // Request camera permission
-    await _eyeTracking.requestCameraPermission();
-    
-    // Start tracking
-    await _eyeTracking.startTracking();
-    
-    // Listen to gaze data
-    _eyeTracking.getGazeStream().listen((gazeData) {
-      print('Gaze: ${gazeData.x}, ${gazeData.y}');
-    });
+    try {
+      // Initialize the plugin
+      await _eyeTracking.initialize();
+      
+      // Request camera permission
+      bool hasPermission = await _eyeTracking.requestCameraPermission();
+      
+      if (hasPermission) {
+        // Start tracking
+        await _eyeTracking.startTracking();
+        
+        // Listen to gaze data
+        _eyeTracking.getGazeStream().listen((gazeData) {
+          setState(() {
+            _gazeInfo = 'Gaze: (${gazeData.x.toInt()}, ${gazeData.y.toInt()}) - ${(gazeData.confidence * 100).toInt()}%';
+          });
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _gazeInfo = 'Error: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Eye Tracking Demo')),
+      body: Center(
+        child: Text(_gazeInfo, style: const TextStyle(fontSize: 18)),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _eyeTracking.dispose();
+    super.dispose();
   }
 }
+```
+
+### Simple Integration
+
+For a minimal setup, you can track gaze in just a few lines:
+
+```dart
+final eyeTracking = EyeTracking();
+
+// Initialize and start tracking
+await eyeTracking.initialize();
+await eyeTracking.requestCameraPermission();
+await eyeTracking.startTracking();
+
+// Get real-time gaze data
+eyeTracking.getGazeStream().listen((gaze) {
+  print('Looking at: (${gaze.x}, ${gaze.y})');
+});
 ```
 
 ## 📖 Detailed Usage
@@ -307,8 +387,9 @@ void dispose() {
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ### Development Setup
+
 ```bash
-git clone https://github.com/piyushhhhh/eye_tracking.git
+git clone https://github.com/Piyushhhhh/eye_tracking.git
 cd eye_tracking
 flutter pub get
 cd example

@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:eye_tracking/eye_tracking.dart';
 import 'package:eye_tracking/eye_tracking_platform_interface.dart';
 
+/// Entry point for the Eye Tracking example application
 void main() {
   runApp(const MyApp());
 }
 
+/// Main application widget
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -17,8 +19,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final _eyeTrackingPlugin = EyeTracking();
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -32,6 +32,7 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
+/// Demo widget showcasing eye tracking functionality
 class EyeTrackingDemo extends StatefulWidget {
   const EyeTrackingDemo({super.key});
 
@@ -57,7 +58,6 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
 
   // Calibration
   bool _isCalibrating = false;
-  int _currentCalibrationPoint = 0;
   List<CalibrationPoint> _calibrationPoints = [];
   double _calibrationAccuracy = 0.0;
 
@@ -68,7 +68,7 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
   StreamSubscription<List<FaceDetection>>? _faceSubscription;
 
   // Gaze visualization
-  List<Offset> _gazeHistory = [];
+  final List<Offset> _gazeHistory = [];
   final int _maxGazeHistory = 50;
 
   @override
@@ -175,24 +175,18 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
     }
   }
 
-  Future<void> _debugWebGazer() async {
+  Future<void> _testGazeStatus() async {
     try {
-      _showSnackBar(
-          'Running WebGazer debug checks... Check console for details',
-          Colors.orange);
-
-      // Force debug logging in the web implementation
-      print('🔧 Debug button pressed - triggering enhanced logging');
-
-      // Try to get current gaze data for debugging
+      // Show current gaze status to user
       if (_latestGaze != null) {
-        print(
-            '📍 Latest gaze data: x=${_latestGaze!.x}, y=${_latestGaze!.y}, confidence=${_latestGaze!.confidence}');
+        _showSnackBar(
+            'Gaze detected: (${_latestGaze!.x.toInt()}, ${_latestGaze!.y.toInt()}) - Confidence: ${(_latestGaze!.confidence * 100).toInt()}%',
+            Colors.green);
       } else {
-        print('⚠️ No gaze data received yet');
+        _showSnackBar('No gaze data available yet', Colors.orange);
       }
     } catch (e) {
-      _showSnackBar('Debug error: $e', Colors.red);
+      _showSnackBar('Error checking gaze status: $e', Colors.red);
     }
   }
 
@@ -274,7 +268,6 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
       if (success) {
         setState(() {
           _isCalibrating = true;
-          _currentCalibrationPoint = 0;
         });
         _showCalibrationDialog();
       }
@@ -297,9 +290,7 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
   }
 
   Future<void> _onCalibrationPointCompleted() async {
-    setState(() {
-      _currentCalibrationPoint++;
-    });
+    // Point completed - this can be used for UI feedback if needed
   }
 
   Future<void> _onCalibrationFinished() async {
@@ -429,10 +420,10 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
                   child: const Text('Calibrate'),
                 ),
                 ElevatedButton(
-                  onPressed: _isInitialized ? _debugWebGazer : null,
+                  onPressed: _isInitialized ? _testGazeStatus : null,
                   style:
                       ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                  child: const Text('Debug WebGazer'),
+                  child: const Text('Test Gaze'),
                 ),
               ],
             ),
@@ -470,7 +461,8 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
                   'Right Eye: ${_latestEyeState!.rightEyeOpen ? "Open" : "Closed"}'),
               if (_latestEyeState!.leftEyeBlink ||
                   _latestEyeState!.rightEyeBlink)
-                Text('Blink detected!', style: TextStyle(color: Colors.orange)),
+                const Text('Blink detected!',
+                    style: TextStyle(color: Colors.orange)),
               const SizedBox(height: 8),
             ],
             if (_latestHeadPose != null) ...[
