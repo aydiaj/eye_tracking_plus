@@ -1,6 +1,7 @@
 import Foundation
 import CoreGraphics
 import UIKit
+import Darwin.Mach
 
 // MARK: - CGPoint Extensions
 extension CGPoint {
@@ -93,30 +94,7 @@ extension Array where Element == CGPoint {
 }
 
 // MARK: - Performance Monitoring
-extension EyeTracker {
-    /// Get memory usage information
-    func getMemoryUsage() -> (resident: Double, virtual: Double) {
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
-        
-        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
-                task_info(mach_task_self_,
-                         task_flavor_t(MACH_TASK_BASIC_INFO),
-                         $0,
-                         &count)
-            }
-        }
-        
-        if kerr == KERN_SUCCESS {
-            let residentMB = Double(info.resident_size) / (1024.0 * 1024.0)
-            let virtualMB = Double(info.virtual_size) / (1024.0 * 1024.0)
-            return (resident: residentMB, virtual: virtualMB)
-        }
-        
-        return (resident: 0.0, virtual: 0.0)
-    }
-}
+// Note: Memory usage functions are implemented in EyeTracker.swift
 
 // MARK: - Logging Utilities
 struct EyeTrackingLogger {
@@ -190,9 +168,9 @@ struct MathUtils {
     }
     
     /// Calculate moving average
-    static func movingAverage<T: Numeric>(_ values: [T]) -> T {
-        guard !values.isEmpty else { return T.zero }
-        return values.reduce(T.zero, +) / T(exactly: values.count) ?? T.zero
+    static func movingAverage(_ values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0.0 }
+        return values.reduce(0.0, +) / Double(values.count)
     }
 }
 
@@ -204,7 +182,7 @@ struct DeviceInfo {
         let machineMirror = Mirror(reflecting: systemInfo.machine)
         let identifier = machineMirror.children.reduce("") { identifier, element in
             guard let value = element.value as? Int8, value != 0 else { return identifier }
-            return identifier + String(UnicodeScalar(UInt8(value))!)
+            return identifier + String(Character(UnicodeScalar(UInt8(value))))
         }
         return identifier
     }

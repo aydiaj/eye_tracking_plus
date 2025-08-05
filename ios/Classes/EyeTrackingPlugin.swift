@@ -4,6 +4,90 @@ import AVFoundation
 import Vision
 import ARKit
 
+// MARK: - Camera Preview Platform View Factory
+class CameraPreviewViewFactory: NSObject, FlutterPlatformViewFactory {
+    private weak var plugin: EyeTrackingPlugin?
+    
+    init(plugin: EyeTrackingPlugin?) {
+        self.plugin = plugin
+        super.init()
+    }
+    
+    func create(
+        withFrame frame: CGRect,
+        viewIdentifier viewId: Int64,
+        arguments args: Any?
+    ) -> FlutterPlatformView {
+        let cameraManager = plugin?.accessibleCameraManager
+        return CameraPreviewView(frame: frame, cameraManager: cameraManager)
+    }
+    
+    func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol {
+        return FlutterStandardMessageCodec.sharedInstance()
+    }
+}
+
+// MARK: - Camera Preview Container View
+class CameraPreviewContainerView: UIView {
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // Update preview layer frame when view bounds change
+        previewLayer?.frame = bounds
+    }
+    
+    func setPreviewLayer(_ layer: AVCaptureVideoPreviewLayer?) {
+        // Remove existing layer if any
+        previewLayer?.removeFromSuperlayer()
+        
+        self.previewLayer = layer
+        
+        if let layer = layer {
+            layer.frame = bounds
+            layer.videoGravity = .resizeAspectFill
+            self.layer.addSublayer(layer)
+        }
+    }
+}
+
+// MARK: - Camera Preview Platform View
+class CameraPreviewView: NSObject, FlutterPlatformView {
+    private let containerView: CameraPreviewContainerView
+    
+    init(frame: CGRect, cameraManager: CameraManager?) {
+        containerView = CameraPreviewContainerView(frame: frame)
+        containerView.backgroundColor = UIColor.black
+        
+        super.init()
+        
+        setupPreviewLayer(cameraManager: cameraManager)
+    }
+    
+    private func setupPreviewLayer(cameraManager: CameraManager?) {
+        guard let previewLayer = cameraManager?.previewLayer else {
+            print("❌ CameraPreviewView: No preview layer available")
+            
+            // Add a placeholder label when no camera is available
+            let label = UILabel(frame: containerView.bounds)
+            label.text = "Camera Preview\nNot Available"
+            label.textAlignment = .center
+            label.numberOfLines = 0
+            label.textColor = UIColor.white
+            label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            containerView.addSubview(label)
+            return
+        }
+        
+        print("✅ CameraPreviewView: Setting up preview layer")
+        containerView.setPreviewLayer(previewLayer)
+    }
+    
+    func view() -> UIView {
+        return containerView
+    }
+}
+
 public class EyeTrackingPlugin: NSObject, FlutterPlugin {
     
     // MARK: - Properties
@@ -22,8 +106,15 @@ public class EyeTrackingPlugin: NSObject, FlutterPlugin {
     private var headPoseEventSink: FlutterEventSink?
     private var faceDetectionEventSink: FlutterEventSink?
     
+    // MARK: - Internal accessors for platform views
+    var accessibleCameraManager: CameraManager? {
+        return cameraManager
+    }
+    
     // MARK: - Plugin Registration
     public static func register(with registrar: FlutterPluginRegistrar) {
+        print("🔔 iOS Plugin: Registering eye tracking plugin")
+        
         let methodChannel = FlutterMethodChannel(name: "eye_tracking", binaryMessenger: registrar.messenger())
         let gazeEventChannel = FlutterEventChannel(name: "eye_tracking/gaze", binaryMessenger: registrar.messenger())
         let eyeStateEventChannel = FlutterEventChannel(name: "eye_tracking/eye_state", binaryMessenger: registrar.messenger())
@@ -40,11 +131,17 @@ public class EyeTrackingPlugin: NSObject, FlutterPlugin {
         
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
         
+        // Register camera preview platform view
+        let cameraPreviewFactory = CameraPreviewViewFactory(plugin: instance)
+        registrar.register(cameraPreviewFactory, withId: "eye_tracking_camera_preview")
+        
         // Set up event channel stream handlers
         gazeEventChannel.setStreamHandler(GazeStreamHandler(plugin: instance))
         eyeStateEventChannel.setStreamHandler(EyeStateStreamHandler(plugin: instance))
         headPoseEventChannel.setStreamHandler(HeadPoseStreamHandler(plugin: instance))
         faceDetectionEventChannel.setStreamHandler(FaceDetectionStreamHandler(plugin: instance))
+        
+        print("✅ iOS Plugin: Registration completed successfully")
     }
     
     // MARK: - Initialization
@@ -63,11 +160,15 @@ public class EyeTrackingPlugin: NSObject, FlutterPlugin {
     
     // MARK: - Flutter Method Channel Handler
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        print("🔔 iOS Plugin: handle() called with method: \(call.method)")
+        
         switch call.method {
         case "getPlatformVersion":
+            print("🔔 iOS Plugin: handling getPlatformVersion")
             result("iOS " + UIDevice.current.systemVersion)
             
         case "initialize":
+            print("🔔 iOS Plugin: handling initialize")
             handleInitialize(result)
             
         case "requestCameraPermission":
@@ -128,32 +229,44 @@ public class EyeTrackingPlugin: NSObject, FlutterPlugin {
     
     // MARK: - Event Sink Setters
     func setGazeEventSink(_ eventSink: FlutterEventSink?) {
+        print("🔔 EyeTrackingPlugin: setGazeEventSink called")
         self.gazeEventSink = eventSink
+        
         eyeTracker?.setGazeDataCallback { [weak self] gazeData in
             self?.gazeEventSink?(gazeData.toDictionary())
         }
+        print("✅ EyeTrackingPlugin: Gaze callback configured")
     }
     
     func setEyeStateEventSink(_ eventSink: FlutterEventSink?) {
+        print("🔔 EyeTrackingPlugin: setEyeStateEventSink called with eventSink: \(eventSink != nil ? "non-nil" : "nil")")
         self.eyeStateEventSink = eventSink
         eyeTracker?.setEyeStateCallback { [weak self] eyeState in
+            print("📊 EyeTrackingPlugin: Eye state callback fired - sending to Flutter: \(eyeState)")
             self?.eyeStateEventSink?(eyeState.toDictionary())
         }
+        print("✅ EyeTrackingPlugin: Eye state callback configured")
     }
     
     func setHeadPoseEventSink(_ eventSink: FlutterEventSink?) {
+        print("🔔 EyeTrackingPlugin: setHeadPoseEventSink called with eventSink: \(eventSink != nil ? "non-nil" : "nil")")
         self.headPoseEventSink = eventSink
         eyeTracker?.setHeadPoseCallback { [weak self] headPose in
+            print("📊 EyeTrackingPlugin: Head pose callback fired - sending to Flutter: \(headPose)")
             self?.headPoseEventSink?(headPose.toDictionary())
         }
+        print("✅ EyeTrackingPlugin: Head pose callback configured")
     }
     
     func setFaceDetectionEventSink(_ eventSink: FlutterEventSink?) {
+        print("🔔 EyeTrackingPlugin: setFaceDetectionEventSink called with eventSink: \(eventSink != nil ? "non-nil" : "nil")")
         self.faceDetectionEventSink = eventSink
         eyeTracker?.setFaceDetectionCallback { [weak self] faces in
+            print("📊 EyeTrackingPlugin: Face detection callback fired - sending \(faces.count) faces to Flutter")
             let faceDictionaries = faces.map { $0.toDictionary() }
             self?.faceDetectionEventSink?(faceDictionaries)
         }
+        print("✅ EyeTrackingPlugin: Face detection callback configured")
     }
 }
 
@@ -161,10 +274,19 @@ public class EyeTrackingPlugin: NSObject, FlutterPlugin {
 extension EyeTrackingPlugin {
     
     private func handleInitialize(_ result: @escaping FlutterResult) {
+        print("🔄 iOS: Initializing eye tracking...")
+        
         cameraManager = CameraManager()
         eyeTracker = EyeTracker(cameraManager: cameraManager!)
         
         let success = eyeTracker?.initialize() ?? false
+        
+        if success {
+            print("✅ iOS: Eye tracking initialized successfully")
+        } else {
+            print("❌ iOS: Eye tracking initialization failed")
+        }
+        
         result(success)
     }
     
@@ -186,7 +308,16 @@ extension EyeTrackingPlugin {
     }
     
     private func handleStartTracking(_ result: @escaping FlutterResult) {
+        print("🔄 iOS: Starting eye tracking...")
+        
         let success = eyeTracker?.startTracking() ?? false
+        
+        if success {
+            print("✅ iOS: Eye tracking started successfully")
+        } else {
+            print("❌ iOS: Failed to start eye tracking")
+        }
+        
         result(success)
     }
     

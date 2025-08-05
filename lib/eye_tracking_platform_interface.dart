@@ -42,7 +42,8 @@ class GazeData {
       x: map['x']?.toDouble() ?? 0.0,
       y: map['y']?.toDouble() ?? 0.0,
       confidence: map['confidence']?.toDouble() ?? 0.0,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
+      timestamp:
+          DateTime.fromMillisecondsSinceEpoch((map['timestamp'] ?? 0).toInt()),
     );
   }
 }
@@ -94,7 +95,8 @@ class EyeState {
       rightEyeOpen: map['rightEyeOpen'] ?? false,
       leftEyeBlink: map['leftEyeBlink'] ?? false,
       rightEyeBlink: map['rightEyeBlink'] ?? false,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
+      timestamp:
+          DateTime.fromMillisecondsSinceEpoch((map['timestamp'] ?? 0).toInt()),
     );
   }
 }
@@ -126,7 +128,8 @@ class HeadPose {
       pitch: map['pitch']?.toDouble() ?? 0.0,
       yaw: map['yaw']?.toDouble() ?? 0.0,
       roll: map['roll']?.toDouble() ?? 0.0,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
+      timestamp:
+          DateTime.fromMillisecondsSinceEpoch((map['timestamp'] ?? 0).toInt()),
     );
   }
 }
@@ -182,11 +185,24 @@ class FaceDetection {
   }
 
   factory FaceDetection.fromMap(Map<String, dynamic> map) {
+    // Handle landmarks - iOS might send as List or Map
+    Map<String, dynamic> landmarks = {};
+    final landmarksData = map['landmarks'];
+    if (landmarksData is Map) {
+      landmarks = Map<String, dynamic>.from(landmarksData);
+    } else if (landmarksData is List) {
+      // Convert List to Map with indices as keys
+      for (int i = 0; i < landmarksData.length; i++) {
+        landmarks[i.toString()] = landmarksData[i];
+      }
+    }
+
     return FaceDetection(
       faceId: map['faceId'] ?? '',
       confidence: map['confidence']?.toDouble() ?? 0.0,
-      landmarks: Map<String, dynamic>.from(map['landmarks'] ?? {}),
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
+      landmarks: landmarks,
+      timestamp:
+          DateTime.fromMillisecondsSinceEpoch((map['timestamp'] ?? 0).toInt()),
     );
   }
 }

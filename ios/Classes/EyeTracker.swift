@@ -34,67 +34,95 @@ class EyeTracker: NSObject {
     
     // MARK: - Initialization
     init(cameraManager: CameraManager) {
+        print("🔄 EyeTracker.init() called")
+        
+        print("🔄 Setting up managers...")
         self.cameraManager = cameraManager
         self.faceDetector = FaceDetector()
         self.gazeProcessor = GazeProcessor()
         self.calibrationManager = CalibrationManager()
+        print("✅ Managers created")
         
+        print("🔄 Setting up configuration...")
         self.configuration = TrackingConfiguration(
             targetFPS: 30,
             accuracyMode: .medium,
             enableBackgroundTracking: false
         )
+        print("✅ Configuration set")
         
+        print("🔄 Setting up queues...")
         self.processingQueue = DispatchQueue(label: "eyetracker.processing", qos: .userInitiated)
         self.callbackQueue = DispatchQueue.main
+        print("✅ Queues created")
         
         super.init()
         
+        print("🔄 Setting delegates...")
         // Set camera delegate
         cameraManager.delegate = self
         
         // Configure face detector delegate
         faceDetector.delegate = self
+        print("✅ Delegates set")
+        
+        print("✅ EyeTracker.init() completed")
     }
     
     // MARK: - Public Interface
     func initialize() -> Bool {
-        guard currentState == .uninitialized else { return true }
-        
-        // Setup camera
-        guard cameraManager.setupCaptureSession() else {
-            currentState = .error
-            return false
+        print("🔄 EyeTracker.initialize() called, current state: \(currentState)")
+        guard currentState == .uninitialized else { 
+            print("ℹ️ Already initialized, returning true")
+            return true 
         }
         
-        // Initialize face detector
+        print("🔄 Initializing face detector...")
         guard faceDetector.initialize() else {
+            print("❌ Face detector initialization failed")
             currentState = .error
             return false
         }
+        print("✅ Face detector initialized")
         
-        // Initialize gaze processor
+        print("🔄 Initializing gaze processor...")
         guard gazeProcessor.initialize() else {
+            print("❌ Gaze processor initialization failed")
             currentState = .error
             return false
         }
+        print("✅ Gaze processor initialized")
         
+        // Note: Camera setup will be done when permissions are granted
         currentState = .ready
-        print("✅ EyeTracker initialized successfully")
+        print("✅ EyeTracker initialized successfully (camera setup pending permissions)")
         return true
     }
     
     func startTracking() -> Bool {
+        print("🔄 EyeTracker.startTracking() called, current state: \(currentState)")
         guard currentState == .ready || currentState == .paused else {
             print("❌ Cannot start tracking from state: \(currentState)")
             return false
         }
         
+        // Setup camera if not already configured
+        print("🔄 Setting up camera capture session...")
+        guard cameraManager.setupCaptureSession() else {
+            print("❌ Failed to setup camera session for tracking - please ensure camera permission is granted")
+            // Don't set error state if it's just a permission issue
+            return false
+        }
+        print("✅ Camera capture session setup successful")
+        
         // Configure camera frame rate
+        print("🔄 Setting camera frame rate to \(configuration.targetFPS) FPS...")
         cameraManager.setFrameRate(configuration.targetFPS)
         
         // Start camera session
+        print("🔄 Starting camera session...")
         cameraManager.startSession()
+        print("✅ Camera session started")
         
         // Reset performance counters
         lastFrameTime = CACurrentMediaTime()
@@ -102,7 +130,7 @@ class EyeTracker: NSObject {
         droppedFrames = 0
         
         currentState = .tracking
-        print("✅ Eye tracking started")
+        print("✅ Eye tracking started successfully")
         return true
     }
     
@@ -282,9 +310,18 @@ class EyeTracker: NSObject {
 extension EyeTracker: CameraManagerDelegate {
     
     func cameraManager(_ manager: CameraManager, didOutput sampleBuffer: CMSampleBuffer) {
-        guard currentState == .tracking else { return }
+        guard currentState == .tracking else { 
+            print("🔄 EyeTracker: Received frame but not tracking (state: \(currentState))")
+            return 
+        }
+        
+        frameCount += 1
+        if frameCount % 30 == 1 { // Log every 30 frames (~1 second at 30fps)
+            print("📹 EyeTracker: Processing frame #\(frameCount), current state: \(currentState)")
+        }
         
         processingQueue.async { [weak self] in
+            print("📹 EyeTracker: About to process video frame asynchronously")
             self?.processVideoFrame(sampleBuffer)
         }
     }
@@ -300,14 +337,18 @@ extension EyeTracker: CameraManagerDelegate {
         // Extract pixel buffer
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             droppedFrames += 1
+            print("❌ Failed to extract pixel buffer from sample buffer")
             return
+        }
+        
+        if frameCount % 60 == 1 { // Log every 60 frames (~2 seconds at 30fps)
+            print("🔄 Processing pixel buffer through face detector...")
         }
         
         // Process frame through face detector
         faceDetector.processFrame(pixelBuffer)
         
         // Update performance counters
-        frameCount += 1
         let processingTime = CACurrentMediaTime() - startTime
         
         // Log performance occasionally
@@ -322,26 +363,33 @@ extension EyeTracker: CameraManagerDelegate {
 extension EyeTracker: FaceDetectorDelegate {
     
     func faceDetector(_ detector: FaceDetector, didDetectFaces faces: [FaceDetection]) {
+        print("👤 Face detector found \(faces.count) faces")
         callbackQueue.async { [weak self] in
             self?.faceDetectionCallback?(faces)
         }
     }
     
     func faceDetector(_ detector: FaceDetector, didUpdateHeadPose headPose: HeadPose) {
+        print("📐 Head pose updated: pitch=\(headPose.pitch), yaw=\(headPose.yaw), roll=\(headPose.roll)")
         callbackQueue.async { [weak self] in
             self?.headPoseCallback?(headPose)
         }
     }
     
     func faceDetector(_ detector: FaceDetector, didUpdateEyeState eyeState: EyeState) {
+        print("👁️ Eye state updated: left=\(eyeState.leftEyeOpen), right=\(eyeState.rightEyeOpen)")
         callbackQueue.async { [weak self] in
             self?.eyeStateCallback?(eyeState)
         }
     }
     
     func faceDetector(_ detector: FaceDetector, didDetectEyeLandmarks landmarks: EyeLandmarks, headPose: HeadPose) {
+        print("🎯 Eye landmarks detected, processing gaze...")
+        
         // Process gaze estimation
         if let gazeData = gazeProcessor.estimateGaze(from: landmarks, headPose: headPose) {
+            print("✅ Gaze data estimated: (\(gazeData.x), \(gazeData.y)) confidence: \(gazeData.confidence)")
+            
             // Add to calibration if currently calibrating
             if calibrationManager.isCalibrating {
                 calibrationManager.addGazeSample(gazeData)
@@ -350,6 +398,8 @@ extension EyeTracker: FaceDetectorDelegate {
             callbackQueue.async { [weak self] in
                 self?.gazeDataCallback?(gazeData)
             }
+        } else {
+            print("❌ Failed to estimate gaze data")
         }
     }
 }

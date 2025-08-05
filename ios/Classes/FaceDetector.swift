@@ -32,23 +32,37 @@ class FaceDetector: NSObject {
     private var trackedFaces: [String: TrackedFace] = [:]
     private var lastDetectionTime: CFTimeInterval = 0
     
+    // Frame counting for debugging
+    private var frameCount = 0
+    
     // Eye state detection
     private var eyeStateTracker: EyeStateTracker
     
     // MARK: - Initialization
     override init() {
+        print("🔄 FaceDetector.init() called")
         self.eyeStateTracker = EyeStateTracker()
         super.init()
+        print("✅ FaceDetector.init() completed")
     }
     
     func initialize() -> Bool {
-        guard !isInitialized else { return true }
+        print("🔄 FaceDetector.initialize() called")
+        guard !isInitialized else { 
+            print("ℹ️ FaceDetector already initialized")
+            return true 
+        }
         
+        print("🔄 Setting up Vision requests...")
         setupVisionRequests()
+        print("✅ Vision requests setup completed")
+        
+        print("🔄 Setting up ARKit if available...")
         setupARKitIfAvailable()
+        print("✅ ARKit setup completed")
         
         isInitialized = true
-        print("✅ FaceDetector initialized")
+        print("✅ FaceDetector initialized successfully")
         return true
     }
     
@@ -88,9 +102,18 @@ class FaceDetector: NSObject {
         
         // Throttle processing based on quality setting
         let minInterval = 1.0 / (30.0 * Double(processingQuality))
-        guard currentTime - lastDetectionTime >= minInterval else { return }
+        guard currentTime - lastDetectionTime >= minInterval else { 
+            return 
+        }
         
         lastDetectionTime = currentTime
+        
+        // Update frame counter for debugging
+        frameCount += 1
+        
+        if frameCount % 60 == 1 { // Log every 60 frames (~2 seconds)
+            print("🔍 FaceDetector processing frame #\(frameCount), using ARKit: \(useARKit)")
+        }
         
         if useARKit {
             processFrameWithARKit(pixelBuffer)
@@ -122,9 +145,13 @@ class FaceDetector: NSObject {
         guard let observations = request.results as? [VNFaceObservation] else {
             if let error = error {
                 print("❌ Face detection error: \(error)")
+            } else {
+                print("⚠️ No face observations returned from Vision request")
             }
             return
         }
+        
+        print("🔍 Vision detected \(observations.count) face(s)")
         
         let currentTime = Date().timeIntervalSince1970 * 1000
         var detectedFaces: [FaceDetection] = []

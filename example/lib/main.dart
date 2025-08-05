@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:io';
 
 import 'package:eye_tracking/eye_tracking.dart';
 import 'package:eye_tracking/eye_tracking_platform_interface.dart';
@@ -102,9 +103,15 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
 
   Future<void> _initialize() async {
     try {
+      print('🔄 Starting initialization from Flutter...');
       final success = await _eyeTrackingPlugin.initialize();
+      print('📱 Initialize returned: $success');
+
       final capabilities = await _eyeTrackingPlugin.getCapabilities();
+      print('📋 Capabilities: $capabilities');
+
       final state = await _eyeTrackingPlugin.getState();
+      print('📊 State: $state');
 
       setState(() {
         _isInitialized = success;
@@ -118,6 +125,7 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
         _showSnackBar('Failed to initialize eye tracking', Colors.red);
       }
     } catch (e) {
+      print('❌ Initialization error: $e');
       _showSnackBar('Error: $e', Colors.red);
     }
   }
@@ -141,20 +149,26 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
 
   Future<void> _startTracking() async {
     try {
+      print('🔄 Starting tracking from Flutter...');
       final success = await _eyeTrackingPlugin.startTracking();
+      print('📱 Start tracking returned: $success');
+
       final state = await _eyeTrackingPlugin.getState();
+      print('📊 New state: $state');
 
       setState(() {
         _currentState = state;
       });
 
       if (success) {
+        print('🔄 Starting data streams...');
         _startDataStreams();
         _showSnackBar('Eye tracking started!', Colors.green);
       } else {
         _showSnackBar('Failed to start tracking', Colors.red);
       }
     } catch (e) {
+      print('❌ Start tracking error: $e');
       _showSnackBar('Error starting tracking: $e', Colors.red);
     }
   }
@@ -191,8 +205,16 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
   }
 
   void _startDataStreams() {
+    print('🔄 Setting up data streams...');
+
     // Gaze data stream with optimized UI updates
-    _gazeSubscription = _eyeTrackingPlugin.getGazeStream().listen((gazeData) {
+    print('🔄 Getting gaze stream from plugin...');
+    final gazeStream = _eyeTrackingPlugin.getGazeStream();
+    print('✅ Got gaze stream, setting up listener...');
+    _gazeSubscription = gazeStream.listen((gazeData) {
+      print(
+          '👁️ Gaze data received: (${gazeData.x.toInt()}, ${gazeData.y.toInt()}) confidence: ${gazeData.confidence}');
+
       // Only update UI if coordinates have actually changed significantly
       // to avoid excessive rebuilds
       final hasSignificantChange = _latestGaze == null ||
@@ -213,31 +235,43 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
         // Update the latest gaze without triggering UI rebuild
         _latestGaze = gazeData;
       }
+    }, onError: (error) {
+      print('❌ Gaze stream error: $error');
     });
+    print('✅ Gaze stream listener configured');
 
     // Eye state stream
+    print('🔄 Getting eye state stream from plugin...');
     _eyeStateSubscription =
         _eyeTrackingPlugin.getEyeStateStream().listen((eyeState) {
+      print('👁️ Eye state data received: $eyeState');
       setState(() {
         _latestEyeState = eyeState;
       });
     });
+    print('✅ Eye state stream listener configured');
 
     // Head pose stream
+    print('🔄 Getting head pose stream from plugin...');
     _headPoseSubscription =
         _eyeTrackingPlugin.getHeadPoseStream().listen((headPose) {
+      print('📐 Head pose data received: $headPose');
       setState(() {
         _latestHeadPose = headPose;
       });
     });
+    print('✅ Head pose stream listener configured');
 
     // Face detection stream
+    print('🔄 Getting face detection stream from plugin...');
     _faceSubscription =
         _eyeTrackingPlugin.getFaceDetectionStream().listen((faces) {
+      print('👤 Face detection data received: ${faces.length} faces');
       setState(() {
         _detectedFaces = faces;
       });
     });
+    print('✅ Face detection stream listener configured');
   }
 
   void _stopAllStreams() {
@@ -339,6 +373,8 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
                 _buildInfoCard(),
                 const SizedBox(height: 16),
                 _buildControlsCard(),
+                const SizedBox(height: 16),
+                _buildCameraPreviewCard(),
                 const SizedBox(height: 16),
                 _buildDataCard(),
                 const SizedBox(height: 16),
@@ -523,6 +559,51 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
                   ],
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraPreviewCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.camera_alt, color: Theme.of(context).primaryColor),
+                const SizedBox(width: 8),
+                Text('Camera Preview',
+                    style: Theme.of(context).textTheme.headlineSmall),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _isInitialized && Platform.isIOS
+                    ? const _CameraPreviewWidget()
+                    : Container(
+                        color: Colors.black,
+                        child: const Center(
+                          child: Text(
+                            'Camera Preview\n(iOS Only)',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+              ),
+            ),
           ],
         ),
       ),
@@ -745,4 +826,31 @@ class GazePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+/// Camera Preview Widget using Platform View (iOS only)
+class _CameraPreviewWidget extends StatelessWidget {
+  const _CameraPreviewWidget();
+
+  @override
+  Widget build(BuildContext context) {
+    if (Platform.isIOS) {
+      return const UiKitView(
+        viewType: 'eye_tracking_camera_preview',
+        creationParams: null,
+        creationParamsCodec: StandardMessageCodec(),
+      );
+    } else {
+      return Container(
+        color: Colors.black,
+        child: const Center(
+          child: Text(
+            'Camera Preview\nNot Available\n(iOS Only)',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      );
+    }
+  }
 }

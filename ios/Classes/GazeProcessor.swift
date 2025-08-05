@@ -2,6 +2,7 @@ import Foundation
 import CoreGraphics
 import simd
 import Accelerate
+import UIKit
 
 class GazeProcessor: NSObject {
     
@@ -26,29 +27,34 @@ class GazeProcessor: NSObject {
     
     // MARK: - Initialization
     override init() {
+        print("🔄 GazeProcessor.init() called")
         self.gazeModel = GazeEstimationModel()
         super.init()
+        print("✅ GazeProcessor.init() completed")
     }
     
     func initialize() -> Bool {
-        guard !isInitialized else { return true }
+        print("🔄 GazeProcessor.initialize() called")
+        guard !isInitialized else { 
+            print("ℹ️ GazeProcessor already initialized")
+            return true 
+        }
         
-        // Initialize gaze estimation model
+        print("🔄 Initializing gaze estimation model...")
         guard gazeModel.initialize() else {
             print("❌ Failed to initialize gaze estimation model")
             return false
         }
+        print("✅ Gaze estimation model initialized")
         
-        // Update screen size from main screen
-        DispatchQueue.main.sync {
-            if let screen = UIScreen.main {
-                screenSize = CGSize(width: screen.bounds.width * screen.scale, 
-                                  height: screen.bounds.height * screen.scale)
-            }
-        }
+        print("🔄 Getting screen size from UIScreen.main...")
+        let screen = UIScreen.main
+        screenSize = CGSize(width: screen.bounds.width * screen.scale, 
+                          height: screen.bounds.height * screen.scale)
+        print("✅ Screen size obtained: \(screenSize)")
         
         isInitialized = true
-        print("✅ GazeProcessor initialized with screen size: \(screenSize)")
+        print("✅ GazeProcessor initialized successfully with screen size: \(screenSize)")
         return true
     }
     
@@ -307,9 +313,10 @@ private class GazeEstimationModel {
     private var processingMode: ProcessingMode = .medium
     
     func initialize() -> Bool {
+        print("🔄 GazeEstimationModel.initialize() called")
         // Initialize the gaze estimation algorithm
         // This could load a CoreML model or initialize mathematical models
-        print("✅ Gaze estimation model initialized")
+        print("✅ Gaze estimation model initialized successfully")
         return true
     }
     

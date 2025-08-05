@@ -68,8 +68,11 @@ class CameraManager: NSObject {
     }
     
     private func configureCaptureSession() -> Bool {
-        guard CameraManager.hasCameraPermission() else {
-            print("❌ Camera permission not granted")
+        let hasPermission = CameraManager.hasCameraPermission()
+        print("📷 Camera permission status: \(hasPermission)")
+        
+        guard hasPermission else {
+            print("❌ Camera permission not granted - setup will be skipped")
             return false
         }
         
@@ -259,6 +262,12 @@ class CameraManager: NSObject {
         return true
     }
     
+    // MARK: - Preview Layer
+    var previewLayer: AVCaptureVideoPreviewLayer? {
+        guard let captureSession = captureSession else { return nil }
+        return AVCaptureVideoPreviewLayer(session: captureSession)
+    }
+    
     // MARK: - Status
     var isRunning: Bool {
         return isSessionRunning
@@ -276,6 +285,7 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         // Forward the sample buffer to the delegate
+        print("📹 CameraManager: Frame captured - forwarding to delegate: \(delegate != nil ? "non-nil" : "nil")")
         delegate?.cameraManager(self, didOutput: sampleBuffer)
     }
     

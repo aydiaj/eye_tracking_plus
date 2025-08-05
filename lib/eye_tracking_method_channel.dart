@@ -38,9 +38,19 @@ class MethodChannelEyeTracking extends EyeTrackingPlatform {
   }
 
   void _setupEventChannels() {
+    if (kDebugMode) {
+      print('🔧 MethodChannel: Setting up event channels...');
+    }
+
     // Setup gaze data stream
+    if (kDebugMode) {
+      print('🔧 MethodChannel: Setting up gaze event channel...');
+    }
     _gazeSubscription = _gazeEventChannel.receiveBroadcastStream().listen(
       (dynamic data) {
+        if (kDebugMode) {
+          print('📊 MethodChannel: Received gaze data from iOS: $data');
+        }
         if (data is Map<dynamic, dynamic>) {
           final gazeData = GazeData.fromMap(Map<String, dynamic>.from(data));
           _gazeController.add(gazeData);
@@ -48,15 +58,24 @@ class MethodChannelEyeTracking extends EyeTrackingPlatform {
       },
       onError: (error) {
         if (kDebugMode) {
-          print('Gaze stream error: $error');
+          print('❌ MethodChannel: Gaze stream error: $error');
         }
       },
     );
+    if (kDebugMode) {
+      print('✅ MethodChannel: Gaze event channel setup complete');
+    }
 
     // Setup eye state stream
+    if (kDebugMode) {
+      print('🔧 MethodChannel: Setting up eye state event channel...');
+    }
     _eyeStateSubscription =
         _eyeStateEventChannel.receiveBroadcastStream().listen(
       (dynamic data) {
+        if (kDebugMode) {
+          print('📊 MethodChannel: Received eye state data from iOS: $data');
+        }
         if (data is Map<dynamic, dynamic>) {
           final eyeState = EyeState.fromMap(Map<String, dynamic>.from(data));
           _eyeStateController.add(eyeState);
@@ -64,15 +83,24 @@ class MethodChannelEyeTracking extends EyeTrackingPlatform {
       },
       onError: (error) {
         if (kDebugMode) {
-          print('Eye state stream error: $error');
+          print('❌ MethodChannel: Eye state stream error: $error');
         }
       },
     );
+    if (kDebugMode) {
+      print('✅ MethodChannel: Eye state event channel setup complete');
+    }
 
     // Setup head pose stream
+    if (kDebugMode) {
+      print('🔧 MethodChannel: Setting up head pose event channel...');
+    }
     _headPoseSubscription =
         _headPoseEventChannel.receiveBroadcastStream().listen(
       (dynamic data) {
+        if (kDebugMode) {
+          print('📊 MethodChannel: Received head pose data from iOS: $data');
+        }
         if (data is Map<dynamic, dynamic>) {
           final headPose = HeadPose.fromMap(Map<String, dynamic>.from(data));
           _headPoseController.add(headPose);
@@ -80,15 +108,25 @@ class MethodChannelEyeTracking extends EyeTrackingPlatform {
       },
       onError: (error) {
         if (kDebugMode) {
-          print('Head pose stream error: $error');
+          print('❌ MethodChannel: Head pose stream error: $error');
         }
       },
     );
+    if (kDebugMode) {
+      print('✅ MethodChannel: Head pose event channel setup complete');
+    }
 
     // Setup face detection stream
+    if (kDebugMode) {
+      print('🔧 MethodChannel: Setting up face detection event channel...');
+    }
     _faceDetectionSubscription =
         _faceDetectionEventChannel.receiveBroadcastStream().listen(
       (dynamic data) {
+        if (kDebugMode) {
+          print(
+              '📊 MethodChannel: Received face detection data from iOS: $data');
+        }
         if (data is List<dynamic>) {
           final faces = data
               .cast<Map<dynamic, dynamic>>()
@@ -100,10 +138,14 @@ class MethodChannelEyeTracking extends EyeTrackingPlatform {
       },
       onError: (error) {
         if (kDebugMode) {
-          print('Face detection stream error: $error');
+          print('❌ MethodChannel: Face detection stream error: $error');
         }
       },
     );
+    if (kDebugMode) {
+      print('✅ MethodChannel: Face detection event channel setup complete');
+      print('🎉 MethodChannel: All event channels setup completed!');
+    }
   }
 
   @override
@@ -115,7 +157,13 @@ class MethodChannelEyeTracking extends EyeTrackingPlatform {
 
   @override
   Future<bool> initialize() async {
+    if (kDebugMode) {
+      print('🔄 MethodChannel: Calling initialize...');
+    }
     final result = await methodChannel.invokeMethod<bool>('initialize');
+    if (kDebugMode) {
+      print('📱 MethodChannel: Initialize result: $result');
+    }
     return result ?? false;
   }
 
@@ -144,7 +192,13 @@ class MethodChannelEyeTracking extends EyeTrackingPlatform {
 
   @override
   Future<bool> startTracking() async {
+    if (kDebugMode) {
+      print('🔄 MethodChannel: Calling startTracking...');
+    }
     final result = await methodChannel.invokeMethod<bool>('startTracking');
+    if (kDebugMode) {
+      print('📱 MethodChannel: StartTracking result: $result');
+    }
     return result ?? false;
   }
 
