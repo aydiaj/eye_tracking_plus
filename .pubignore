@@ -1,0 +1,5 @@
+# Exclude build artifacts and symlinks from published package
+build/
+example/ios/.symlinks/plugins/eye_tracking
+example/ios/.symlinks/plugins/integration_test
+*.iml
