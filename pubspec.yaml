@@ -28,9 +28,7 @@ dev_dependencies:
 topics:
   - eye-tracking
   - computer-vision
-  - webgazer
   - gaze-tracking
-  - accessibility
   - proctoring
   - anti-cheating
 
