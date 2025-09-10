@@ -17,7 +17,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  eye_tracking:
+  eye_tracking_plus:
     # When depending on this package from a real application you should use:
     #   eye_tracking: ^x.y.z
     # See https://dart.dev/tools/pub/dependencies#version-constraints

@@ -87,7 +87,8 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
   Future<void> initPlatformState() async {
     String platformVersion;
     try {
-      platformVersion = await _eyeTrackingPlugin.getPlatformVersion() ??
+      platformVersion =
+          await _eyeTrackingPlugin.getPlatformVersion() ??
           'Unknown platform version';
     } on PlatformException {
       platformVersion = 'Failed to get platform version.';
@@ -180,8 +181,9 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
       // Show current gaze status to user
       if (_latestGaze != null) {
         _showSnackBar(
-            'Gaze detected: (${_latestGaze!.x.toInt()}, ${_latestGaze!.y.toInt()}) - Confidence: ${(_latestGaze!.confidence * 100).toInt()}%',
-            Colors.green);
+          'Gaze detected: (${_latestGaze!.x.toInt()}, ${_latestGaze!.y.toInt()}) - Confidence: ${(_latestGaze!.confidence * 100).toInt()}%',
+          Colors.green,
+        );
       } else {
         _showSnackBar('No gaze data available yet', Colors.orange);
       }
@@ -195,7 +197,8 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
     _gazeSubscription = _eyeTrackingPlugin.getGazeStream().listen((gazeData) {
       // Only update UI if coordinates have actually changed significantly
       // to avoid excessive rebuilds
-      final hasSignificantChange = _latestGaze == null ||
+      final hasSignificantChange =
+          _latestGaze == null ||
           (gazeData.x - _latestGaze!.x).abs() > 5.0 ||
           (gazeData.y - _latestGaze!.y).abs() > 5.0;
 
@@ -216,24 +219,27 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
     });
 
     // Eye state stream
-    _eyeStateSubscription =
-        _eyeTrackingPlugin.getEyeStateStream().listen((eyeState) {
+    _eyeStateSubscription = _eyeTrackingPlugin.getEyeStateStream().listen((
+      eyeState,
+    ) {
       setState(() {
         _latestEyeState = eyeState;
       });
     });
 
     // Head pose stream
-    _headPoseSubscription =
-        _eyeTrackingPlugin.getHeadPoseStream().listen((headPose) {
+    _headPoseSubscription = _eyeTrackingPlugin.getHeadPoseStream().listen((
+      headPose,
+    ) {
       setState(() {
         _latestHeadPose = headPose;
       });
     });
 
     // Face detection stream
-    _faceSubscription =
-        _eyeTrackingPlugin.getFaceDetectionStream().listen((faces) {
+    _faceSubscription = _eyeTrackingPlugin.getFaceDetectionStream().listen((
+      faces,
+    ) {
       setState(() {
         _detectedFaces = faces;
       });
@@ -263,8 +269,9 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
     );
 
     try {
-      final success =
-          await _eyeTrackingPlugin.startCalibration(_calibrationPoints);
+      final success = await _eyeTrackingPlugin.startCalibration(
+        _calibrationPoints,
+      );
       if (success) {
         setState(() {
           _isCalibrating = true;
@@ -280,12 +287,13 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => CalibrationDialog(
-        calibrationPoints: _calibrationPoints,
-        onPointCompleted: _onCalibrationPointCompleted,
-        onCalibrationFinished: _onCalibrationFinished,
-        eyeTrackingPlugin: _eyeTrackingPlugin,
-      ),
+      builder:
+          (context) => CalibrationDialog(
+            calibrationPoints: _calibrationPoints,
+            onPointCompleted: _onCalibrationPointCompleted,
+            onCalibrationFinished: _onCalibrationFinished,
+            eyeTrackingPlugin: _eyeTrackingPlugin,
+          ),
     );
   }
 
@@ -304,8 +312,9 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
       });
 
       _showSnackBar(
-          'Calibration completed! Accuracy: ${(accuracy * 100).toStringAsFixed(1)}%',
-          Colors.green);
+        'Calibration completed! Accuracy: ${(accuracy * 100).toStringAsFixed(1)}%',
+        Colors.green,
+      );
     } catch (e) {
       _showSnackBar('Error finishing calibration: $e', Colors.red);
     }
@@ -361,8 +370,10 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Platform Info',
-                style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              'Platform Info',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 8),
             Text('Platform: $_platformVersion'),
             Text('State: ${_currentState.name}'),
@@ -370,7 +381,8 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
             Text('Has Permission: $_hasPermission'),
             if (_calibrationAccuracy > 0)
               Text(
-                  'Calibration Accuracy: ${(_calibrationAccuracy * 100).toStringAsFixed(1)}%'),
+                'Calibration Accuracy: ${(_calibrationAccuracy * 100).toStringAsFixed(1)}%',
+              ),
           ],
         ),
       ),
@@ -399,17 +411,19 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
                   child: const Text('Request Permission'),
                 ),
                 ElevatedButton(
-                  onPressed: (_isInitialized &&
-                          _hasPermission &&
-                          _currentState != EyeTrackingState.tracking)
-                      ? _startTracking
-                      : null,
+                  onPressed:
+                      (_isInitialized &&
+                              _hasPermission &&
+                              _currentState != EyeTrackingState.tracking)
+                          ? _startTracking
+                          : null,
                   child: const Text('Start Tracking'),
                 ),
                 ElevatedButton(
-                  onPressed: _currentState == EyeTrackingState.tracking
-                      ? _stopTracking
-                      : null,
+                  onPressed:
+                      _currentState == EyeTrackingState.tracking
+                          ? _stopTracking
+                          : null,
                   child: const Text('Stop Tracking'),
                 ),
                 ElevatedButton(
@@ -421,8 +435,9 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
                 ),
                 ElevatedButton(
                   onPressed: _isInitialized ? _testGazeStatus : null,
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                  ),
                   child: const Text('Test Gaze'),
                 ),
               ],
@@ -440,50 +455,69 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Real-time Data',
-                style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              'Real-time Data',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 16),
             if (_latestGaze != null) ...[
-              Text('Gaze Position:',
-                  style: Theme.of(context).textTheme.titleMedium),
               Text(
-                  'X: ${_latestGaze!.x.toStringAsFixed(1)}, Y: ${_latestGaze!.y.toStringAsFixed(1)}'),
+                'Gaze Position:',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               Text(
-                  'Confidence: ${(_latestGaze!.confidence * 100).toStringAsFixed(1)}%'),
+                'X: ${_latestGaze!.x.toStringAsFixed(1)}, Y: ${_latestGaze!.y.toStringAsFixed(1)}',
+              ),
+              Text(
+                'Confidence: ${(_latestGaze!.confidence * 100).toStringAsFixed(1)}%',
+              ),
               const SizedBox(height: 8),
             ],
             if (_latestEyeState != null) ...[
-              Text('Eye State:',
-                  style: Theme.of(context).textTheme.titleMedium),
               Text(
-                  'Left Eye: ${_latestEyeState!.leftEyeOpen ? "Open" : "Closed"}'),
+                'Eye State:',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               Text(
-                  'Right Eye: ${_latestEyeState!.rightEyeOpen ? "Open" : "Closed"}'),
+                'Left Eye: ${_latestEyeState!.leftEyeOpen ? "Open" : "Closed"}',
+              ),
+              Text(
+                'Right Eye: ${_latestEyeState!.rightEyeOpen ? "Open" : "Closed"}',
+              ),
               if (_latestEyeState!.leftEyeBlink ||
                   _latestEyeState!.rightEyeBlink)
-                const Text('Blink detected!',
-                    style: TextStyle(color: Colors.orange)),
+                const Text(
+                  'Blink detected!',
+                  style: TextStyle(color: Colors.orange),
+                ),
               const SizedBox(height: 8),
             ],
             if (_latestHeadPose != null) ...[
-              Text('Head Pose:',
-                  style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Head Pose:',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               Text('Pitch: ${_latestHeadPose!.pitch.toStringAsFixed(1)}°'),
               Text('Yaw: ${_latestHeadPose!.yaw.toStringAsFixed(1)}°'),
               Text('Roll: ${_latestHeadPose!.roll.toStringAsFixed(1)}°'),
               const SizedBox(height: 8),
             ],
             if (_detectedFaces.isNotEmpty) ...[
-              Text('Detected Faces: ${_detectedFaces.length}',
-                  style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Detected Faces: ${_detectedFaces.length}',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               for (final face in _detectedFaces)
                 Text(
-                    'Face ${face.faceId}: ${(face.confidence * 100).toStringAsFixed(1)}% confidence'),
+                  'Face ${face.faceId}: ${(face.confidence * 100).toStringAsFixed(1)}% confidence',
+                ),
             ],
             if (_latestGaze == null &&
                 _currentState == EyeTrackingState.tracking)
-              const Text('Waiting for data...',
-                  style: TextStyle(fontStyle: FontStyle.italic)),
+              const Text(
+                'Waiting for data...',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
           ],
         ),
       ),
@@ -499,8 +533,10 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Platform Capabilities',
-                style: Theme.of(context).textTheme.headlineSmall),
+            Text(
+              'Platform Capabilities',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
             const SizedBox(height: 16),
             for (final entry in _capabilities.entries)
               Padding(
@@ -512,9 +548,10 @@ class _EyeTrackingDemoState extends State<EyeTrackingDemo> {
                     Text(
                       entry.value.toString(),
                       style: TextStyle(
-                        color: entry.value == true
-                            ? Colors.green
-                            : entry.value == false
+                        color:
+                            entry.value == true
+                                ? Colors.green
+                                : entry.value == false
                                 ? Colors.red
                                 : null,
                         fontWeight: FontWeight.bold,
@@ -593,11 +630,13 @@ class _CalibrationDialogState extends State<CalibrationDialog> {
         _isCollectingData = true;
       });
 
-      _calibrationTimer =
-          Timer.periodic(const Duration(milliseconds: 100), (timer) async {
+      _calibrationTimer = Timer.periodic(const Duration(milliseconds: 100), (
+        timer,
+      ) async {
         if (_currentPointIndex < widget.calibrationPoints.length) {
           await widget.eyeTrackingPlugin.addCalibrationPoint(
-              widget.calibrationPoints[_currentPointIndex]);
+            widget.calibrationPoints[_currentPointIndex],
+          );
         }
       });
 
@@ -646,7 +685,9 @@ class _CalibrationDialogState extends State<CalibrationDialog> {
                     Text(
                       'Calibration ${_currentPointIndex + 1}/${widget.calibrationPoints.length}',
                       style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -695,19 +736,17 @@ class GazePainter extends CustomPainter {
   final GazeData currentGaze;
   final List<Offset> gazeHistory;
 
-  GazePainter({
-    required this.currentGaze,
-    required this.gazeHistory,
-  });
+  GazePainter({required this.currentGaze, required this.gazeHistory});
 
   @override
   void paint(Canvas canvas, Size size) {
     // Draw gaze history trail
     if (gazeHistory.length > 1) {
-      final paint = Paint()
-        ..color = Colors.blue.withOpacity(0.3)
-        ..strokeWidth = 2
-        ..style = PaintingStyle.stroke;
+      final paint =
+          Paint()
+            ..color = Colors.blue.withOpacity(0.3)
+            ..strokeWidth = 2
+            ..style = PaintingStyle.stroke;
 
       final path = Path();
       path.moveTo(gazeHistory.first.dx, gazeHistory.first.dy);
@@ -720,21 +759,19 @@ class GazePainter extends CustomPainter {
     }
 
     // Draw current gaze point
-    final gazePaint = Paint()
-      ..color = Colors.red.withOpacity(0.8)
-      ..style = PaintingStyle.fill;
+    final gazePaint =
+        Paint()
+          ..color = Colors.red.withOpacity(0.8)
+          ..style = PaintingStyle.fill;
 
-    canvas.drawCircle(
-      Offset(currentGaze.x, currentGaze.y),
-      8,
-      gazePaint,
-    );
+    canvas.drawCircle(Offset(currentGaze.x, currentGaze.y), 8, gazePaint);
 
     // Draw confidence indicator
-    final confidencePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+    final confidencePaint =
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2;
 
     canvas.drawCircle(
       Offset(currentGaze.x, currentGaze.y),

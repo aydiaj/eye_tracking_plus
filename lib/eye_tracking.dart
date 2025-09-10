@@ -116,6 +116,13 @@ class EyeTracking {
     return EyeTrackingPlatform.instance.getCalibrationAccuracy();
   }
 
+  /// Get real-time state data
+  ///
+  /// Stream of [getStateStream]
+  Stream<EyeTrackingState> getStateStream() {
+    return EyeTrackingPlatform.instance.getStateStream();
+  }
+
   /// Get real-time gaze tracking data
   ///
   /// Stream of [GazeData] containing x, y coordinates (in screen pixels),
@@ -169,7 +176,43 @@ class EyeTracking {
   ///
   /// Note: Background tracking may be limited by platform policies.
   Future<bool> enableBackgroundTracking(bool enable) {
-    return EyeTrackingPlatform.instance.enableBackgroundTracking(enable);
+    return EyeTrackingPlatform.instance
+        .enableBackgroundTracking(enable);
+  }
+
+  /// Changing in Use Tracker Module
+  ///
+  ///The tracker module controls how eyes are detected
+  Future<bool> setTracker(String tracker) {
+    return EyeTrackingPlatform.instance.setTracker(tracker);
+  }
+
+  /// Changing in Use Regression Module
+  ///
+  /// The regression module determines how the regression model is learned and how
+  /// predictions are made based on the eye patches extracted from the tracker module
+  /*
+  Here are all the regression modules that come by default with WebGazer.js. 
+    ridge - mapping pixels from the detected eyes to locations on the screen.
+    weightedRidge - with the newest user interactions contributing more to the model.
+    threadedRidge - a faster implementation of ridge regression that uses threads.
+  */
+  Future<bool> setRegression(String regression) {
+    return EyeTrackingPlatform.instance.setRegression(regression);
+  }
+
+  /// register a custom tracker that you’ve loaded via JS
+  Future<bool> addTrackerModule(
+      String name, String constructorJsGlobal) {
+    return EyeTrackingPlatform.instance
+        .addTrackerModule(name, constructorJsGlobal);
+  }
+
+  /// register a custom regression that you’ve loaded via JS
+  Future<bool> addRegressionModule(
+      String name, String constructorJsGlobal) {
+    return EyeTrackingPlatform.instance
+        .addRegressionModule(name, constructorJsGlobal);
   }
 
   /// Get platform capabilities

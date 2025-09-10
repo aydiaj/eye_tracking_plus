@@ -6,10 +6,10 @@
 
 #import "GeneratedPluginRegistrant.h"
 
-#if __has_include(<eye_tracking/EyeTrackingPlugin.h>)
-#import <eye_tracking/EyeTrackingPlugin.h>
+#if __has_include(<eye_tracking_plus/EyeTrackingPlugin.h>)
+#import <eye_tracking_plus/EyeTrackingPlugin.h>
 #else
-@import eye_tracking;
+@import eye_tracking_plus;
 #endif
 
 #if __has_include(<integration_test/IntegrationTestPlugin.h>)

@@ -42,7 +42,8 @@ class GazeData {
       x: map['x']?.toDouble() ?? 0.0,
       y: map['y']?.toDouble() ?? 0.0,
       confidence: map['confidence']?.toDouble() ?? 0.0,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
+      timestamp:
+          DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
     );
   }
 }
@@ -94,7 +95,8 @@ class EyeState {
       rightEyeOpen: map['rightEyeOpen'] ?? false,
       leftEyeBlink: map['leftEyeBlink'] ?? false,
       rightEyeBlink: map['rightEyeBlink'] ?? false,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
+      timestamp:
+          DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
     );
   }
 }
@@ -126,7 +128,8 @@ class HeadPose {
       pitch: map['pitch']?.toDouble() ?? 0.0,
       yaw: map['yaw']?.toDouble() ?? 0.0,
       roll: map['roll']?.toDouble() ?? 0.0,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
+      timestamp:
+          DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
     );
   }
 }
@@ -186,7 +189,8 @@ class FaceDetection {
       faceId: map['faceId'] ?? '',
       confidence: map['confidence']?.toDouble() ?? 0.0,
       landmarks: Map<String, dynamic>.from(map['landmarks'] ?? {}),
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
+      timestamp:
+          DateTime.fromMillisecondsSinceEpoch(map['timestamp'] ?? 0),
     );
   }
 }
@@ -195,10 +199,20 @@ enum EyeTrackingState {
   uninitialized,
   initializing,
   ready,
+  warmingUp,
   tracking,
   calibrating,
   paused,
   error,
+}
+
+enum ScreenState {
+  insideOfScreen,
+  outsideOfScreen,
+  focus,
+  blur,
+  visible,
+  unknown,
 }
 
 /// Platform interface for eye tracking functionality.
@@ -228,12 +242,14 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
 
   // Basic platform info
   Future<String?> getPlatformVersion() {
-    throw UnimplementedError('getPlatformVersion() has not been implemented.');
+    throw UnimplementedError(
+        'getPlatformVersion() has not been implemented.');
   }
 
   // Initialization and state management
   Future<bool> initialize() {
-    throw UnimplementedError('initialize() has not been implemented.');
+    throw UnimplementedError(
+        'initialize() has not been implemented.');
   }
 
   Future<bool> requestCameraPermission() {
@@ -242,7 +258,8 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
   }
 
   Future<bool> hasCameraPermission() {
-    throw UnimplementedError('hasCameraPermission() has not been implemented.');
+    throw UnimplementedError(
+        'hasCameraPermission() has not been implemented.');
   }
 
   Future<EyeTrackingState> getState() {
@@ -251,36 +268,44 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
 
   // Tracking control
   Future<bool> startTracking() {
-    throw UnimplementedError('startTracking() has not been implemented.');
+    throw UnimplementedError(
+        'startTracking() has not been implemented.');
   }
 
   Future<bool> stopTracking() {
-    throw UnimplementedError('stopTracking() has not been implemented.');
+    throw UnimplementedError(
+        'stopTracking() has not been implemented.');
   }
 
   Future<bool> pauseTracking() {
-    throw UnimplementedError('pauseTracking() has not been implemented.');
+    throw UnimplementedError(
+        'pauseTracking() has not been implemented.');
   }
 
   Future<bool> resumeTracking() {
-    throw UnimplementedError('resumeTracking() has not been implemented.');
+    throw UnimplementedError(
+        'resumeTracking() has not been implemented.');
   }
 
   // Calibration
   Future<bool> startCalibration(List<CalibrationPoint> points) {
-    throw UnimplementedError('startCalibration() has not been implemented.');
+    throw UnimplementedError(
+        'startCalibration() has not been implemented.');
   }
 
   Future<bool> addCalibrationPoint(CalibrationPoint point) {
-    throw UnimplementedError('addCalibrationPoint() has not been implemented.');
+    throw UnimplementedError(
+        'addCalibrationPoint() has not been implemented.');
   }
 
   Future<bool> finishCalibration() {
-    throw UnimplementedError('finishCalibration() has not been implemented.');
+    throw UnimplementedError(
+        'finishCalibration() has not been implemented.');
   }
 
   Future<bool> clearCalibration() {
-    throw UnimplementedError('clearCalibration() has not been implemented.');
+    throw UnimplementedError(
+        'clearCalibration() has not been implemented.');
   }
 
   Future<double> getCalibrationAccuracy() {
@@ -288,17 +313,27 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
         'getCalibrationAccuracy() has not been implemented.');
   }
 
+  // State streams
+  Stream<EyeTrackingState> getStateStream() {
+    throw UnimplementedError(
+      'getStateStream() has not been implemented.',
+    );
+  }
+
   // Data streams
   Stream<GazeData> getGazeStream() {
-    throw UnimplementedError('getGazeStream() has not been implemented.');
+    throw UnimplementedError(
+        'getGazeStream() has not been implemented.');
   }
 
   Stream<EyeState> getEyeStateStream() {
-    throw UnimplementedError('getEyeStateStream() has not been implemented.');
+    throw UnimplementedError(
+        'getEyeStateStream() has not been implemented.');
   }
 
   Stream<HeadPose> getHeadPoseStream() {
-    throw UnimplementedError('getHeadPoseStream() has not been implemented.');
+    throw UnimplementedError(
+        'getHeadPoseStream() has not been implemented.');
   }
 
   Stream<List<FaceDetection>> getFaceDetectionStream() {
@@ -313,7 +348,8 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
   }
 
   Future<bool> setAccuracyMode(String mode) {
-    throw UnimplementedError('setAccuracyMode() has not been implemented.');
+    throw UnimplementedError(
+        'setAccuracyMode() has not been implemented.');
   }
 
   Future<bool> enableBackgroundTracking(bool enable) {
@@ -321,9 +357,33 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
         'enableBackgroundTracking() has not been implemented.');
   }
 
+  Future<bool> setTracker(String tracker) {
+    throw UnimplementedError(
+        'setTracker() has not been implemented.');
+  }
+
+  Future<bool> setRegression(String regression) {
+    throw UnimplementedError(
+        'setRegression() has not been implemented.');
+  }
+
+  /// constructorJsGlobal is the name of a global JS constructor function you expose
+  Future<bool> addTrackerModule(
+      String name, String constructorJsGlobal) {
+    throw UnimplementedError(
+        'addTrackerModule() has not been implemented.');
+  }
+
+  Future<bool> addRegressionModule(
+      String name, String constructorJsGlobal) {
+    throw UnimplementedError(
+        'addRegressionModule() has not been implemented.');
+  }
+
   // Utility methods
   Future<Map<String, dynamic>> getCapabilities() {
-    throw UnimplementedError('getCapabilities() has not been implemented.');
+    throw UnimplementedError(
+        'getCapabilities() has not been implemented.');
   }
 
   Future<bool> dispose() {
