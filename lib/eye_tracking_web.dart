@@ -575,8 +575,9 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
 
   @override
   Future<double> getCalibrationAccuracy() async {
-    if (_calibEvalSamples == 0 || _calibTrainSamples == 0)
+    if (_calibEvalSamples == 0 || _calibTrainSamples == 0) {
       return _lastAccuracy01;
+    }
     // Require some data before trusting accuracy
     const int kMinTrain = 12; // tune
     const int kMinEval = 10; // tune
@@ -588,10 +589,10 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
     final meanErrPx = _sumErrPx / _calibEvalSamples;
 
     // Use current viewport diagonal for normalization
-    final w = window.innerWidth?.toDouble() ??
-        window.screen.width.toDouble();
-    final h = window.innerHeight?.toDouble() ??
-        window.screen.height.toDouble();
+    final w = window.innerWidth
+        .toDouble(); // ??window.screen.width.toDouble()
+    final h = window.innerHeight
+        .toDouble(); // ??window.screen.height.toDouble()
     final diag = math.sqrt(w * w + h * h);
 
     final acc01 = (1.0 - (meanErrPx / diag)).clamp(0.0, 1.0);
@@ -833,10 +834,10 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
     }
 
     // 3) In-bounds (soft margin). No heavy math.
-    final vw = (window.innerWidth?.toDouble() ??
-        window.screen.width.toDouble());
-    final vh = (window.innerHeight?.toDouble() ??
-        window.screen.height.toDouble());
+    final vw = (window.innerWidth
+        .toDouble()); //?? window.screen.width.toDouble()
+    final vh = (window.innerHeight
+        .toDouble()); //??window.screen.height.toDouble()
 
     // Soft margin: fully good if ≥m px inside; smoothly drops to 0 by going m px outside.
     const m = 32.0; // margin in px
