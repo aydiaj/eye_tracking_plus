@@ -1,11 +1,11 @@
-# Eye Tracking Proctor for Flutter (community fork)
+## Eye Tracking Proctor for Flutter (community fork)
 
 > A maintained fork of [`eye_tracking`](https://github.com/Piyushhhhh/eye_tracking) (MIT-licensed)
 > adapted for **anti-cheating / remote-proctoring** use cases.  
 > This fork adds attention/screen state signals, stable gaze confidence, real calibration accuracy,
 > warm-up gating, and ready-to-use signals for remote proctoring.
 
-## ✨ What’s new 
+### ✨ What’s new 
 
 - 📡 **Lifecycle & state stream**
   - New getStateStream()
