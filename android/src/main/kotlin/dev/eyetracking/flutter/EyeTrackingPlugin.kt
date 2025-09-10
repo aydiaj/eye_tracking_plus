@@ -391,7 +391,7 @@ class EyeTrackingPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, Plugin
   private fun dispose(result: Result) {
     try {
       // Clean up resources
-      stopTracking(Result { /* ignore */ })
+      stopTracking(result)
       isInitialized = false
       eyeTrackingState = "uninitialized"
       result.success(true)
