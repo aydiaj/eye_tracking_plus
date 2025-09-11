@@ -246,6 +246,11 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
         'getPlatformVersion() has not been implemented.');
   }
 
+  bool getWarmedOnce() {
+    throw UnimplementedError(
+        'getWarmedOnce() has not been implemented.');
+  }
+
   // Initialization and state management
   Future<bool> initialize() {
     throw UnimplementedError(
@@ -264,6 +269,11 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
 
   Future<EyeTrackingState> getState() {
     throw UnimplementedError('getState() has not been implemented.');
+  }
+
+  //prewarm
+  Future<void> prewarm() {
+    throw UnimplementedError('prewarm() has not been implemented.');
   }
 
   // Tracking control
@@ -317,6 +327,12 @@ abstract class EyeTrackingPlatform extends PlatformInterface {
   Stream<EyeTrackingState> getStateStream() {
     throw UnimplementedError(
       'getStateStream() has not been implemented.',
+    );
+  }
+
+  Stream<bool> getWarmedOnceStream() {
+    throw UnimplementedError(
+      'getWarmedOnceStream() has not been implemented.',
     );
   }
 

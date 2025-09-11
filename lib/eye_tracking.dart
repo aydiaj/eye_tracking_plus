@@ -42,6 +42,16 @@ class EyeTracking {
     return EyeTrackingPlatform.instance.getState();
   }
 
+  ///Get true if warmed once
+  bool getWarmedOnce() {
+    return EyeTrackingPlatform.instance.getWarmedOnce();
+  }
+
+  //prewarm
+  Future<void> prewarm() {
+    return EyeTrackingPlatform.instance.prewarm();
+  }
+
   /// Start eye tracking
   ///
   /// Returns true if tracking started successfully.
@@ -121,6 +131,10 @@ class EyeTracking {
   /// Stream of [getStateStream]
   Stream<EyeTrackingState> getStateStream() {
     return EyeTrackingPlatform.instance.getStateStream();
+  }
+
+  Stream<bool> getWarmedOnceStream() {
+    return EyeTrackingPlatform.instance.getWarmedOnceStream();
   }
 
   /// Get real-time gaze tracking data

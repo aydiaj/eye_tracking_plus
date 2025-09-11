@@ -23,6 +23,10 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
   final _faceDetectionController =
       StreamController<List<FaceDetection>>.broadcast();
 
+  // Time state
+  final int _pageStartEpochMs = DateTime.now().millisecondsSinceEpoch;
+  double? _firstJsTimestamp;
+
   // State management
   EyeTrackingState _currentState = EyeTrackingState.uninitialized;
   bool _isInitialized = false;
@@ -56,6 +60,30 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
     milliseconds: 33,
   ); // ~30 FPS
 
+  //Attention event handlers
+  JSFunction? _onVisJs,
+      _onFocusJs,
+      _onBlurJs,
+      _onPointerEnterJs,
+      _onPointerLeaveJs,
+      _onMouseEnterJs,
+      _onMouseLeaveJs;
+
+  // Warm-session control
+  int _warmToken = 0; // bumps on every _enterWarming() call
+  Completer<void>?
+      _warmGate; // completes when warm resolves (success/timeout)
+  Timer? _warmTimer;
+  int _warmStreak = 0;
+  final int _warmMinFrames = 6; // ~200ms @ 30fps
+
+  //Warmed once state and stream
+  bool _warmedOnce = false;
+  final _warmedOnceCtl = StreamController<bool>.broadcast();
+
+  // Serialize calls into _initializeWebGazer() without modifying it
+  Completer<void>? _bootLock;
+
   @override
   Future<String?> getPlatformVersion() async {
     return 'Web ${window.navigator.userAgent}';
@@ -72,97 +100,19 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
       await _loadWebGazer();
 
       _isInitialized = true;
-      initAttentionGuards();
+      _initAttentionGuards();
       _emitNewState(EyeTrackingState.ready);
+
+      if (_hasPermission && _webGazerLoaded) {
+        // fire-and-forget; don’t block init
+        unawaited(_enterWarming().catchError((_) {}));
+      }
 
       return true;
     } catch (e) {
       _emitNewState(EyeTrackingState.error);
       return false;
     }
-  }
-
-  void initAttentionGuards() {
-    _docHasFocus = true;
-    _docVisible = (document.visibilityState == 'visible');
-
-    document.addEventListener(
-      'visibilitychange',
-      ((Event _) =>
-          _docVisible = (document.visibilityState == 'visible')).toJS,
-    );
-
-    window.addEventListener(
-      'focus',
-      ((Event _) => _docHasFocus = true).toJS,
-    );
-    window.addEventListener(
-      'blur',
-      ((Event _) => _docHasFocus = false).toJS,
-    );
-
-    // Optional pointer hints (nice-to-have; not required)
-    document.addEventListener(
-      'pointerover',
-      ((Event _) => _docHasFocus = true).toJS,
-    );
-    document.addEventListener(
-      'pointerleave',
-      ((Event _) => _docHasFocus = false).toJS,
-    );
-
-    document.addEventListener(
-      'mouseleave',
-      ((Event _) => _docHasFocus = false).toJS,
-    );
-
-    document.addEventListener(
-      'mouseenter',
-      ((Event _) => _docHasFocus = true).toJS,
-    );
-  }
-
-  Future<void> _loadWebGazer() async {
-    // Check if WebGazer is already loaded
-    if (_webGazerLoaded && _hasWebGazerProperty()) {
-      return;
-    }
-
-    final completer = Completer<void>();
-
-    final script = HTMLScriptElement()
-      ..src = 'https://webgazer.cs.brown.edu/webgazer.js';
-
-    script.addEventListener(
-      'load',
-      (Event event) {
-        // Handle async work without making the event listener async
-        Future.delayed(const Duration(milliseconds: 1000)).then((_) {
-          if (_hasWebGazerProperty()) {
-            _webGazerLoaded = true;
-            completer.complete();
-          } else {
-            completer.completeError(
-              'WebGazer object not found after loading',
-            );
-          }
-        });
-      }.toJS,
-    );
-
-    script.addEventListener(
-      'error',
-      (Event event) {
-        completer.completeError('Failed to load WebGazer.js');
-      }.toJS,
-    );
-
-    document.head!.appendChild(script);
-    await completer.future;
-  }
-
-  bool _hasWebGazerProperty() {
-    return (window as JSObject).has('webgazer');
   }
 
   @override
@@ -195,207 +145,42 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
   }
 
   @override
+  Future<void> prewarm() async {
+    try {
+      await _enterWarming();
+    } catch (_) {}
+  }
+
+  @override
+  Stream<bool> getWarmedOnceStream() => _warmedOnceCtl.stream;
+  @override
+  bool getWarmedOnce() => _warmedOnce;
+  @override
   Future<bool> startTracking() async {
     if (!_isInitialized || !_hasPermission || !_webGazerLoaded) {
       return false;
     }
-
-    try {
-      _emitNewState(EyeTrackingState.warmingUp);
-      await _initializeWebGazer();
-      return true;
-    } catch (e) {
-      _emitNewState(EyeTrackingState.error);
-      return false;
-    }
-  }
-
-  Future<void> _initializeWebGazer() async {
-    if (_webGazerStarted) {
-      // Just resume if already started
-      try {
-        _callWebGazerMethod('resume');
-      } catch (e) {
-        // Silently handle resume errors
-      }
-      return;
+    if (!_warmedOnce) {
+      await _enterWarming();
     }
 
     try {
-      // Set up global callback for gaze data
-      (window as JSObject).setProperty(
-        '_gazeCallback'.toJS,
-        ((JSAny? data, JSNumber timestamp) {
-          if (data != null &&
-              (_currentState == EyeTrackingState.warmingUp ||
-                  _currentState == EyeTrackingState.tracking ||
-                  _currentState == EyeTrackingState.calibrating)) {
-            _handleGazeData(data, timestamp.toDartDouble);
-          }
-        }).toJS,
-      );
-
-      // Set up the gaze listener
-      try {
-        _evalJS(
-          'webgazer.setGazeListener(function(data, timestamp) {   if (window._gazeCallback) {     window._gazeCallback(data, timestamp);   } });',
-        );
-      } catch (e) {
-        // Silently handle gaze listener setup errors
-      }
-
-      // Configure WebGazer settings
-      try {
-        _evalJS(
-          'webgazer.setRegression("ridge").setTracker("TFFacemesh").showPredictionPoints(false);',
-        );
-      } catch (e) {
-        // Silently handle configuration errors
-      }
-
-      // Start WebGazer and wait for it to be ready
-      try {
-        _evalJS('webgazer.begin();');
-
-        // Wait for WebGazer to initialize
-        await Future.delayed(const Duration(milliseconds: 3000));
-
-        _webGazerStarted = true;
-
-        // Auto-calibration: Add some default calibration points to help WebGazer
-        // start producing meaningful gaze predictions
-        _performAutoCalibration();
-      } catch (e) {
-        rethrow;
-      }
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  void _evalJS(String code) {
-    (window as JSObject).callMethodVarArgs('eval'.toJS, [code.toJS]);
-  }
-
-  void _callWebGazerMethod(String method, [List<JSAny>? args]) {
-    final webgazer =
-        (window as JSObject).getProperty('webgazer'.toJS) as JSObject;
-    if (args != null) {
-      webgazer.callMethodVarArgs(method.toJS, args);
-    } else {
-      webgazer.callMethodVarArgs(method.toJS, []);
-    }
-  }
-
-  void _handleGazeData(JSAny? data, num timestamp) {
-    try {
-      // Throttle updates to prevent UI freezing
-      final now = DateTime.now();
-      if (_lastGazeUpdate != null &&
-          now.difference(_lastGazeUpdate!) < _gazeThrottleInterval) {
-        return; // Skip this update to maintain stable frame rate
-      }
-      _lastGazeUpdate = now;
-
-      if (data == null) {
-        return;
-      }
-
-      double x = 0.0;
-      double y = 0.0;
-      bool coordinatesFound = false;
-
-      // Try to extract coordinates from JSObject
-      try {
-        final jsObj = data as JSObject;
-        final jsX = jsObj.getProperty('x'.toJS);
-        final jsY = jsObj.getProperty('y'.toJS);
-
-        if (jsX != null && jsY != null) {
-          x = (jsX as JSNumber).toDartDouble;
-          y = (jsY as JSNumber).toDartDouble;
-          coordinatesFound = true;
-        }
-      } catch (e) {
-        // Fallback: try accessing through JavaScript evaluation
-        try {
-          (window as JSObject).setProperty(
-            '_tempGazeData'.toJS,
-            data,
-          );
-          final jsX = _evalJSAndGetResult('window._tempGazeData.x');
-          final jsY = _evalJSAndGetResult('window._tempGazeData.y');
-
-          if (jsX != null && jsY != null) {
-            x = (jsX as JSNumber).toDartDouble;
-            y = (jsY as JSNumber).toDartDouble;
-            if (x > 0 && y > 0) {
-              coordinatesFound = true;
-            }
-          }
-        } catch (e) {
-          // Silently handle JS eval errors
-        }
-      }
-
-      if (_currentState == EyeTrackingState.warmingUp &&
-          coordinatesFound) {
+      if (_warmedOnce) {
+        await _initializeWebGazer(); // resumes if alreadyWarm
         _emitNewState(EyeTrackingState.tracking);
+        return true;
       }
-
-      // If still no coordinates, skip this update
-      if (!coordinatesFound || (x == 0.0 && y == 0.0)) {
-        return;
-      }
-
-      // Validate coordinates
-      if (!x.isFinite || !y.isFinite) {
-        return;
-      }
-
-      final sampleEpochMs = _toEpochMs(timestamp);
-
-      // conf computation here
-      final conf = updateGazeConfidence(
-        x: x,
-        y: y,
-        timestamp: DateTime.fromMillisecondsSinceEpoch(sampleEpochMs),
-      );
-
-      final gazeData = GazeData(
-        x: x,
-        y: y,
-        confidence: conf,
-        timestamp: DateTime.fromMillisecondsSinceEpoch(
-          sampleEpochMs, //timestamp.toInt(),
-        ),
-      );
-
-      // Create and emit gaze data
-      /* final gazeData = GazeData(
-        x: x,
-        y: y,
-        confidence: coordinatesFound ? 0.8 : 0.3,
-        timestamp: DateTime.fromMillisecondsSinceEpoch(
-          timestamp.toInt(),
-        ),
-      ); */
-
-      // Emit to stream with error handling
-      if (!_gazeController.isClosed) {
-        try {
-          _gazeController.add(gazeData);
-        } catch (e) {
-          // Silently handle stream errors
-        }
-      }
+      return false;
     } catch (e) {
-      // Silently handle processing errors
+      print('error $e');
+      _emitNewState(EyeTrackingState.ready);
+      return false;
     }
   }
 
   @override
   Future<bool> stopTracking() async {
+    _cancelWarmInFlight();
     try {
       _emitNewState(EyeTrackingState.ready);
 
@@ -416,7 +201,7 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
   @override
   Future<bool> pauseTracking() async {
     if (_currentState != EyeTrackingState.tracking) return false;
-
+    _cancelWarmInFlight();
     try {
       _emitNewState(EyeTrackingState.paused);
 
@@ -454,9 +239,7 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
 
   @override
   Future<bool> startCalibration(List<CalibrationPoint> points) async {
-    if (_currentState != EyeTrackingState.ready &&
-        _currentState != EyeTrackingState.warmingUp &&
-        _currentState != EyeTrackingState.tracking) {
+    if (_currentState != EyeTrackingState.tracking || !_warmedOnce) {
       return false;
     }
 
@@ -748,8 +531,92 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
 
   /// ----------------- helpers -----------------
 
-  final int _pageStartEpochMs = DateTime.now().millisecondsSinceEpoch;
-  double? _firstJsTimestamp;
+  void _initAttentionGuards() {
+    _docHasFocus = true;
+    _docVisible = (document.visibilityState == 'visible');
+
+    _onVisJs = ((Event _) =>
+        _docVisible = (document.visibilityState == 'visible')).toJS;
+
+    document.addEventListener('visibilitychange', _onVisJs);
+
+    _onFocusJs = ((Event _) => _docHasFocus = true).toJS;
+    window.addEventListener(
+      'focus',
+      _onFocusJs,
+    );
+
+    _onBlurJs = ((Event _) => _docHasFocus = false).toJS;
+    window.addEventListener(
+      'blur',
+      _onBlurJs,
+    );
+
+    // Optional pointer hints (nice-to-have; not required)
+    _onPointerEnterJs = ((Event _) => _docHasFocus = true).toJS;
+    document.addEventListener('pointerenter', _onPointerEnterJs);
+
+    _onPointerLeaveJs = ((Event _) => _docHasFocus = false).toJS;
+    document.addEventListener(
+      'pointerleave',
+      _onPointerLeaveJs,
+    );
+
+    _onMouseLeaveJs = ((Event _) => _docHasFocus = false).toJS;
+    document.addEventListener(
+      'mouseleave',
+      _onMouseLeaveJs,
+    );
+
+    _onMouseEnterJs = ((Event _) => _docHasFocus = true).toJS;
+    document.addEventListener(
+      'mouseenter',
+      _onPointerEnterJs,
+    );
+  }
+
+  Future<void> _loadWebGazer() async {
+    // Check if WebGazer is already loaded
+    if (_webGazerLoaded && _hasWebGazerProperty()) {
+      return;
+    }
+
+    final completer = Completer<void>();
+
+    final script = HTMLScriptElement()
+      ..src = 'https://webgazer.cs.brown.edu/webgazer.js';
+
+    script.addEventListener(
+      'load',
+      (Event event) {
+        // Handle async work without making the event listener async
+        Future.delayed(const Duration(milliseconds: 1000)).then((_) {
+          if (_hasWebGazerProperty()) {
+            _webGazerLoaded = true;
+            completer.complete();
+          } else {
+            completer.completeError(
+              'WebGazer object not found after loading',
+            );
+          }
+        });
+      }.toJS,
+    );
+
+    script.addEventListener(
+      'error',
+      (Event event) {
+        completer.completeError('Failed to load WebGazer.js');
+      }.toJS,
+    );
+
+    document.head!.appendChild(script);
+    await completer.future;
+  }
+
+  bool _hasWebGazerProperty() {
+    return (window as JSObject).has('webgazer');
+  }
 
   Future<void> _ensureTrackerOn() async {
     if (!_webGazerStarted) {
@@ -760,6 +627,288 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
       } catch (_) {
         _evalJS('webgazer.resume()');
       }
+    }
+  }
+
+  Future<void> _initializeWebGazer() async {
+    if (_webGazerStarted) {
+      // Just resume if already started
+      try {
+        _callWebGazerMethod('resume');
+      } catch (e) {
+        // Silently handle resume errors
+      }
+      return;
+    }
+
+    try {
+      // Set up global callback for gaze data
+      (window as JSObject).setProperty(
+        '_gazeCallback'.toJS,
+        ((JSAny? data, JSNumber timestamp) {
+          if (data != null &&
+              (_currentState == EyeTrackingState.warmingUp ||
+                  _currentState == EyeTrackingState.tracking ||
+                  _currentState == EyeTrackingState.calibrating)) {
+            _handleGazeData(data, timestamp.toDartDouble);
+          }
+        }).toJS,
+      );
+
+      // Set up the gaze listener
+      try {
+        _evalJS(
+          'webgazer.setGazeListener(function(data, timestamp) {   if (window._gazeCallback) {     window._gazeCallback(data, timestamp);   } });',
+        );
+      } catch (e) {
+        // Silently handle gaze listener setup errors
+      }
+
+      // Configure WebGazer settings
+      try {
+        _evalJS(
+          'webgazer.setRegression("ridge").setTracker("TFFacemesh").showPredictionPoints(false);',
+        );
+      } catch (e) {
+        // Silently handle configuration errors
+      }
+
+      // Start WebGazer and wait for it to be ready
+      try {
+        _evalJS('webgazer.begin();');
+
+        // Wait for WebGazer to initialize
+        await Future.delayed(const Duration(milliseconds: 3000));
+
+        _webGazerStarted = true;
+
+        // Auto-calibration: Add some default calibration points to help WebGazer
+        // start producing meaningful gaze predictions
+        _performAutoCalibration();
+      } catch (e) {
+        rethrow;
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  void _evalJS(String code) {
+    (window as JSObject).callMethodVarArgs('eval'.toJS, [code.toJS]);
+  }
+
+  void _callWebGazerMethod(String method, [List<JSAny>? args]) {
+    final webgazer =
+        (window as JSObject).getProperty('webgazer'.toJS) as JSObject;
+    if (args != null) {
+      webgazer.callMethodVarArgs(method.toJS, args);
+    } else {
+      webgazer.callMethodVarArgs(method.toJS, []);
+    }
+  }
+
+  void _handleGazeData(JSAny? data, num timestamp) {
+    try {
+      // Throttle updates to prevent UI freezing
+      final now = DateTime.now();
+      if (_lastGazeUpdate != null &&
+          now.difference(_lastGazeUpdate!) < _gazeThrottleInterval) {
+        return; // Skip this update to maintain stable frame rate
+      }
+      _lastGazeUpdate = now;
+
+      if (data == null) {
+        return;
+      }
+
+      double x = 0.0;
+      double y = 0.0;
+      bool coordinatesFound = false;
+
+      // Try to extract coordinates from JSObject
+      try {
+        final jsObj = data as JSObject;
+        final jsX = jsObj.getProperty('x'.toJS);
+        final jsY = jsObj.getProperty('y'.toJS);
+
+        if (jsX != null && jsY != null) {
+          x = (jsX as JSNumber).toDartDouble;
+          y = (jsY as JSNumber).toDartDouble;
+          coordinatesFound = true;
+        }
+      } catch (e) {
+        // Fallback: try accessing through JavaScript evaluation
+        try {
+          (window as JSObject).setProperty(
+            '_tempGazeData'.toJS,
+            data,
+          );
+          final jsX = _evalJSAndGetResult('window._tempGazeData.x');
+          final jsY = _evalJSAndGetResult('window._tempGazeData.y');
+
+          if (jsX != null && jsY != null) {
+            x = (jsX as JSNumber).toDartDouble;
+            y = (jsY as JSNumber).toDartDouble;
+            if (x > 0 && y > 0) {
+              coordinatesFound = true;
+            }
+          }
+        } catch (e) {
+          // Silently handle JS eval errors
+        }
+      }
+
+      // If still no coordinates, skip this update
+      if (!coordinatesFound || (x == 0.0 && y == 0.0)) {
+        return;
+      }
+
+      // Validate coordinates
+      if (!x.isFinite || !y.isFinite) {
+        return;
+      }
+
+      final sampleEpochMs = _toEpochMs(timestamp);
+
+      // conf computation here
+      final conf = updateGazeConfidence(
+        x: x,
+        y: y,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(sampleEpochMs),
+      );
+
+      final gazeData = GazeData(
+        x: x,
+        y: y,
+        confidence: conf,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(
+          sampleEpochMs, //timestamp.toInt(),
+        ),
+      );
+
+      // Only resolve the currently active warm gate
+      if (_currentState == EyeTrackingState.warmingUp &&
+          _warmGate != null &&
+          !_warmGate!.isCompleted) {
+        final confOk = 0.5;
+
+        if (coordinatesFound && conf >= confOk) {
+          if (++_warmStreak >= _warmMinFrames) {
+            _warmTimer?.cancel();
+            _markWarmedOnce();
+            // Prewarm path: pause and return to Ready
+            try {
+              _callWebGazerMethod('pause');
+            } catch (_) {
+              _evalJS('webgazer.pause()');
+            }
+            _cancelWarmInFlight();
+          }
+        } else {
+          _warmStreak = 0;
+        }
+      }
+
+      // Create and emit gaze data
+      /* final gazeData = GazeData(
+        x: x,
+        y: y,
+        confidence: coordinatesFound ? 0.8 : 0.3,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(
+          timestamp.toInt(),
+        ),
+      ); */
+
+      // Emit to stream with error handling
+      if (!_gazeController.isClosed) {
+        try {
+          _gazeController.add(gazeData);
+        } catch (e) {
+          // Silently handle stream errors
+        }
+      }
+    } catch (e) {
+      // Silently handle processing errors
+    }
+  }
+
+  Future<void> _withBootLock(Future<void> Function() fn) async {
+    // Coalesce concurrent callers into a single _initializeWebGazer() run
+    if (_bootLock != null) return _bootLock!.future;
+    final c = _bootLock = Completer<void>();
+    try {
+      await fn();
+      c.complete();
+    } catch (e, st) {
+      c.completeError(e, st);
+      rethrow;
+    } finally {
+      _bootLock = null;
+    }
+  }
+
+  Future<void> _enterWarming({
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    // Supersede any previous warm attempt
+    _cancelWarmInFlight();
+
+    if (_warmedOnce) return;
+
+    final myToken = ++_warmToken; // tag this attempt
+    _warmGate = Completer<void>();
+    _warmStreak = 0;
+
+    _emitNewState(EyeTrackingState.warmingUp);
+
+    try {
+      await _withBootLock(() => _initializeWebGazer());
+    } catch (e) {
+      print('warming error -> ready');
+      _cancelWarmInFlight();
+      rethrow;
+    }
+
+    // Timeout handler belongs only to this token
+    _warmTimer = Timer(timeout, () async {
+      if (myToken != _warmToken) {
+        return; // newer warm started → ignore
+      }
+      try {
+        _callWebGazerMethod('pause');
+      } catch (_) {
+        _evalJS('webgazer.pause()');
+      }
+
+      print('warming timeout -> ready');
+      _cancelWarmInFlight();
+    });
+
+    // Let caller await resolution (success or timeout)
+    await _warmGate!.future;
+  }
+
+  void _cancelWarmInFlight([Object? error]) {
+    _warmTimer?.cancel();
+    _warmTimer = null;
+    if (_warmGate != null && !_warmGate!.isCompleted) {
+      _warmGate!.complete();
+      //_warmGate!.completeError(error ?? StateError('warm cancelled'));
+    }
+    _warmGate = null;
+    _warmStreak = 0;
+
+    _emitNewState(EyeTrackingState.ready);
+  }
+
+  void _markWarmedOnce() {
+    print('warmed');
+    if (_warmedOnce) return;
+    _warmedOnce = true;
+    if (!_warmedOnceCtl.isClosed) {
+      try {
+        _warmedOnceCtl.add(true);
+      } catch (_) {}
     }
   }
 
@@ -907,8 +1056,8 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
 
   Future<void> _performAutoCalibration() async {
     // Add some basic calibration points to help WebGazer learn
-    final screenWidth = window.screen.width.toDouble();
-    final screenHeight = window.screen.height.toDouble();
+    final screenWidth = window.innerWidth.toDouble();
+    final screenHeight = window.innerHeight.toDouble();
 
     // Use center and corner points for quick calibration
     final autoCalibrationPoints = [
@@ -959,8 +1108,9 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
     }
   }
 
-  _emitNewState(EyeTrackingState state) {
-    _currentState = state;
+  _emitNewState(EyeTrackingState next) {
+    if (next == _currentState) return; // de-dupe
+    _currentState = next;
     // Emit state to stream
     if (!_stateController.isClosed) {
       try {
@@ -973,14 +1123,41 @@ class EyeTrackingWeb extends EyeTrackingPlatform {
 
   @override
   Future<bool> dispose() async {
+    _cancelWarmInFlight();
+
     try {
       _trackingTimer?.cancel();
 
+      await _warmedOnceCtl.close();
       await _gazeController.close();
       await _stateController.close();
       await _eyeStateController.close();
       await _headPoseController.close();
       await _faceDetectionController.close();
+
+      if (_onVisJs != null) {
+        document.removeEventListener('visibilitychange', _onVisJs!);
+      }
+      if (_onFocusJs != null) {
+        window.removeEventListener('focus', _onFocusJs!);
+      }
+      if (_onBlurJs != null) {
+        window.removeEventListener('blur', _onBlurJs!);
+      }
+      if (_onPointerEnterJs != null) {
+        document.removeEventListener(
+            'pointerenter', _onPointerEnterJs!);
+      }
+      if (_onPointerLeaveJs != null) {
+        document.removeEventListener(
+            'pointerleave', _onPointerLeaveJs!);
+      }
+      if (_onMouseEnterJs != null) {
+        document.removeEventListener('mouseenter', _onMouseEnterJs!);
+      }
+      if (_onMouseLeaveJs != null) {
+        document.removeEventListener('mouseleave', _onMouseLeaveJs!);
+      }
 
       // Stop WebGazer
       if (_webGazerStarted && _hasWebGazerProperty()) {
